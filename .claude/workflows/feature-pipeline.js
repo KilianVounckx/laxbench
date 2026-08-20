@@ -4,6 +4,7 @@ export const meta = {
   phases: [
     { title: 'Plan' },
     { title: 'Implement', model: 'haiku' },
+    { title: 'Collect', model: 'haiku' },
     { title: 'Review' },
   ],
 }
@@ -28,6 +29,16 @@ const PLAN_SCHEMA = {
     },
   },
   required: ['plan', 'choices'],
+}
+
+const COLLECT_SCHEMA = {
+  type: 'object',
+  properties: {
+    diff: { type: 'string' },
+    checkOutput: { type: 'string' },
+    koverOutput: { type: 'string' },
+  },
+  required: ['diff', 'checkOutput'],
 }
 
 const REVIEW_SCHEMA = {
@@ -75,9 +86,23 @@ while (cycle < MAX_CYCLES && !approved) {
   })
   log(`Cycle ${cycle}: implementation done`)
 
+  phase('Collect')
+  const collectResult = await agent(
+    'Collect the current diff and build/check status as instructed.',
+    {
+      agentType: 'feature-diff-collector',
+      schema: COLLECT_SCHEMA,
+      phase: 'Collect',
+      label: `collect-cycle-${cycle}`,
+      model: 'haiku',
+      effort: 'low',
+    }
+  )
+  log(`Cycle ${cycle}: diff and check status collected`)
+
   phase('Review')
   const reviewResult = await agent(
-    `Run \`git diff\` yourself in the current working tree to see the implementation changes made so far, and review them.\n\nFeature story, for context only (you have no plan to check against — review the diff on its own merits and against the existing codebase):\n\n${story}`,
+    `Here is the diff produced by an implementation attempt, and the project's build/check status — both collected independently from the actual repo state, not self-reported by the implementer. Review them.\n\nDiff:\n${collectResult.diff}\n\n./gradlew check output:\n${collectResult.checkOutput}\n\n./gradlew :shared:koverVerify output (empty if not applicable — the diff didn't touch the domain layer):\n${collectResult.koverOutput || '(not run — no domain files touched)'}\n\nFeature story, for context only (you have no plan to check against — review the diff on its own merits and against the existing codebase):\n\n${story}`,
     {
       agentType: 'feature-reviewer',
       schema: REVIEW_SCHEMA,
