@@ -19,6 +19,8 @@ kover {
   }
 }
 
+tasks.named("check") { dependsOn("koverVerify") }
+
 kotlin {
   listOf(
       iosArm64(),
