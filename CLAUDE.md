@@ -30,7 +30,29 @@ for its entire lifetime; don't re-validate the same thing at every call site.
 Not mechanically enforceable — checked in review against this file (see
 `.claude/agents/feature-reviewer.md`).
 
-## 3. Tests
+## 3. Code reuse — avoid duplication
+
+Functional code — domain logic, business rules, general-purpose logic of any kind — must be
+extracted to a single shared place rather than copy-pasted or reimplemented wherever it's needed
+again. If two pieces of logic do the same thing, there should be one definition of that thing, not
+two that have to be kept in sync by hand.
+
+UI components should be extracted the same way when they truly represent the same thing repeated
+in multiple places — this applies even to small pieces (e.g. a button style reused across screens),
+not just large ones.
+
+The judgment call that matters here is *sameness*, not resemblance. Larger UI sections in
+particular often look alike without actually being the same thing — two screens that happen to
+share a layout today but represent different concepts, or that will plausibly evolve independently.
+Forcing those into one shared, parameterized component just because they currently look similar
+usually produces something worse than the duplication it removes: a component riddled with
+conditionals to handle cases that aren't really the same case. Extract when the two things should
+change together; tolerate duplication when they merely look similar right now.
+
+Not mechanically enforceable — "is this truly the same thing" is a judgment call, so it's checked
+in review against this file (see `.claude/agents/feature-reviewer.md`).
+
+## 4. Tests
 
 Every non-private function in the domain layer (`io.github.kilianvounckx.laxbench.domain`) must
 have tests. Other code may be tested if it gets complicated enough to warrant it, but isn't
@@ -43,7 +65,7 @@ through, so review still matters here too.
 
 Run: `./gradlew :shared:koverVerify`
 
-## 4. Formatting
+## 5. Formatting
 
 All Kotlin files (including `.gradle.kts` build scripts) are formatted with ktfmt, Google style.
 Applied to every subproject via a `subprojects {}` block in the root `build.gradle.kts`; wired
@@ -51,7 +73,7 @@ into each module's `check` task automatically by the ktfmt plugin.
 
 Run: `./gradlew ktfmtFormat` to format, `./gradlew ktfmtCheck` to verify without changing files.
 
-## 5. No unused code
+## 6. No unused code
 
 No unused variables, functions, parameters, or imports. Enforced by treating all Kotlin compiler
 warnings as errors (`allWarningsAsErrors`, set for every subproject in the root `build.gradle.kts`)
@@ -59,7 +81,7 @@ warnings as errors (`allWarningsAsErrors`, set for every subproject in the root 
 those warnings into build failures. This does not catch unused *public* declarations no one calls
 anywhere (the compiler can't know that); watch for that in review.
 
-## 6. Dependency versions in the version catalog
+## 7. Dependency versions in the version catalog
 
 Every Gradle dependency and plugin version must be declared in `gradle/libs.versions.toml`, never
 as a literal in a `build.gradle.kts`. (`settings.gradle.kts` is exempt: the `pluginManagement`
