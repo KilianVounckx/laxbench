@@ -3,7 +3,7 @@ export const meta = {
   description: 'Plan, implement, and review a feature from a finalized story, retrying plan->implement->review up to 4 cycles',
   phases: [
     { title: 'Plan' },
-    { title: 'Implement' },
+    { title: 'Implement', model: 'haiku' },
     { title: 'Review' },
   ],
 }
@@ -59,6 +59,7 @@ while (cycle < MAX_CYCLES && !approved) {
     schema: PLAN_SCHEMA,
     phase: 'Plan',
     label: `plan-cycle-${cycle}`,
+    effort: 'high',
   })
   plan = planResult.plan
   allChoices.push(...planResult.choices.map(c => ({ ...c, cycle })))
@@ -69,6 +70,8 @@ while (cycle < MAX_CYCLES && !approved) {
     agentType: 'feature-implementer',
     phase: 'Implement',
     label: `implement-cycle-${cycle}`,
+    model: 'haiku',
+    effort: 'low',
   })
   log(`Cycle ${cycle}: implementation done`)
 
@@ -80,6 +83,7 @@ while (cycle < MAX_CYCLES && !approved) {
       schema: REVIEW_SCHEMA,
       phase: 'Review',
       label: `review-cycle-${cycle}`,
+      effort: 'high',
     }
   )
   approved = reviewResult.approved

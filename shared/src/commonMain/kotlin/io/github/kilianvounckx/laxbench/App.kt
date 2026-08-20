@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -23,6 +24,9 @@ import org.jetbrains.compose.resources.painterResource
 fun App() {
   MaterialTheme {
     var showContent by remember { mutableStateOf(false) }
+    var isPrimaryColor by remember { mutableStateOf(true) }
+    val toggleButtonColor =
+      if (isPrimaryColor) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
     Column(
       modifier =
         Modifier.background(MaterialTheme.colorScheme.primaryContainer)
@@ -31,6 +35,12 @@ fun App() {
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
       Button(onClick = { showContent = !showContent }) { Text("Click me you!") }
+      Button(
+        onClick = { isPrimaryColor = !isPrimaryColor },
+        colors = ButtonDefaults.buttonColors(containerColor = toggleButtonColor),
+      ) {
+        Text("Toggle!")
+      }
       AnimatedVisibility(showContent) {
         val greeting = remember { Greeting().greet() }
         Column(

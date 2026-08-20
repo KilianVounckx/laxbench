@@ -7,6 +7,8 @@ This skill runs a feature from request to reviewed diff through four isolated st
 
 **Isolation is the point of this design**: the planner, implementer, and reviewer subagents never see each other's reasoning or communicate directly. They only ever receive exactly what the workflow script passes them — the story, the plan, or the diff (via their own `git diff`) — never anything else. Do not weaken this by, e.g., pasting the plan into the reviewer's prompt, or the story into the implementer's prompt.
 
+**Model tiers are deliberately uneven**: the implementer runs on a cheap, low-effort model (`haiku`, `effort: 'low'`) because it isn't supposed to reason — it just has to follow the plan literally. The planner and reviewer run at high effort on the inherited (more capable) model, since they do the actual judgment calls: working out implementation details/edge cases, and catching inconsistencies. Don't "fix" the implementer by upgrading its model if it seems to be struggling — that's a signal the plan wasn't precise enough, and the fix belongs in the planner's prompt or the plan it produces, not in giving the implementer more reasoning budget.
+
 ## Step 1 — Interactive story capture (you do this directly, not a subagent)
 
 1. Check `git status`. If the working tree is not clean, stop and tell the user — uncommitted changes would ride along into the feature branch and corrupt what the reviewer sees as "the diff." Ask them to commit or stash first.
