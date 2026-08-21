@@ -11,6 +11,7 @@ import io.github.kilianvounckx.laxbench.domain.Goals
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
 import io.github.kilianvounckx.laxbench.domain.Save
 import io.github.kilianvounckx.laxbench.domain.Saves
+import io.github.kilianvounckx.laxbench.domain.TeamName
 import io.github.kilianvounckx.laxbench.domain.TimeOut
 import io.github.kilianvounckx.laxbench.domain.TimeOuts
 import kotlin.test.Test
@@ -33,6 +34,8 @@ class ScoreSheetDataTest {
         visitingSaves = Saves.empty,
         homeFaceOffs = FaceOffs.empty,
         visitingFaceOffs = FaceOffs.empty,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertTrue(data.goals.isEmpty())
@@ -72,6 +75,8 @@ class ScoreSheetDataTest {
         visitingSaves = Saves.empty,
         homeFaceOffs = FaceOffs.empty,
         visitingFaceOffs = FaceOffs.empty,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertEquals(2, data.goals.size)
@@ -110,6 +115,8 @@ class ScoreSheetDataTest {
         visitingSaves = Saves.empty,
         homeFaceOffs = FaceOffs.empty,
         visitingFaceOffs = FaceOffs.empty,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertEquals(2, data.goals.size)
@@ -144,6 +151,8 @@ class ScoreSheetDataTest {
         visitingSaves = Saves.empty,
         homeFaceOffs = FaceOffs.empty,
         visitingFaceOffs = FaceOffs.empty,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertEquals(2, data.fouls.size)
@@ -168,6 +177,8 @@ class ScoreSheetDataTest {
         visitingSaves = Saves.empty,
         homeFaceOffs = FaceOffs.empty,
         visitingFaceOffs = FaceOffs.empty,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertEquals(1, data.homeTimeOuts.size)
@@ -199,6 +210,8 @@ class ScoreSheetDataTest {
         homeFaceOffs =
           FaceOffs.empty.recorded(homeFaceOff1).recorded(homeFaceOff2).recorded(homeFaceOff3),
         visitingFaceOffs = FaceOffs.empty.recorded(visitingFaceOff),
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     assertEquals(2, data.homeSaves)

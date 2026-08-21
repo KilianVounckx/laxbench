@@ -19,6 +19,7 @@ import io.github.kilianvounckx.laxbench.domain.FoulSeverity
 import io.github.kilianvounckx.laxbench.domain.MajorFoulType
 import io.github.kilianvounckx.laxbench.domain.MinorFoulType
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
+import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 
 /**
  * Which step of the foul-recording pop-up (see [App] and [FoulDialog]) is currently shown, together
@@ -79,7 +80,7 @@ private fun FoulDialogStep.previous(): FoulDialogStep? =
  * team committed the foul, the offending player's number, and the foul's severity (with a further
  * specific-type step for [FoulSeverity.Minor]/[FoulSeverity.Major], since [FoulSeverity.Expulsion]
  * has no sub-type of its own, and, for [FoulSeverity.Major] only, one more step after that to
- * choose the penalty duration). Shown when the "Foul" button is tapped (see [App]).
+ * choose the penalty duration). Shown when the "Foul" button is tapped (see [GameScreen]).
  *
  * [onConfirm] is invoked exactly once, as soon as enough has been chosen to build a complete
  * [FoulSeverity]: immediately for [FoulSeverity.Expulsion]; after its specific type is picked for
@@ -97,6 +98,7 @@ private fun FoulDialogStep.previous(): FoulDialogStep? =
  */
 @Composable
 fun FoulDialog(
+  teams: TeamsInfo,
   onConfirm: (team: ScoreViewModel.Team, player: PlayerNumber, severity: FoulSeverity) -> Unit,
   onDismiss: () -> Unit,
 ) {
@@ -113,7 +115,7 @@ fun FoulDialog(
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ScoreViewModel.Team.entries.forEach { team ->
               TextButton(onClick = { step = FoulDialogStep.EnterPlayer(team) }) {
-                Text(team.label())
+                Text(teams.label(team))
               }
             }
           }

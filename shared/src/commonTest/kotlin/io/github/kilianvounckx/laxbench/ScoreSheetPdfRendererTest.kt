@@ -4,6 +4,7 @@ import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.FoulSeverity
 import io.github.kilianvounckx.laxbench.domain.MinorFoulType
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
+import io.github.kilianvounckx.laxbench.domain.TeamName
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -22,6 +23,8 @@ class ScoreSheetPdfRendererTest {
         visitingSaves = 0,
         homeFaceOffs = 0,
         visitingFaceOffs = 0,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     val bytes = data.toPdfBytes()
@@ -67,6 +70,8 @@ class ScoreSheetPdfRendererTest {
         visitingSaves = 2,
         homeFaceOffs = 6,
         visitingFaceOffs = 1,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     val pdf = data.toPdfBytes().decodeToString()
@@ -111,6 +116,8 @@ class ScoreSheetPdfRendererTest {
         visitingSaves = 0,
         homeFaceOffs = 0,
         visitingFaceOffs = 0,
+        homeName = TeamName.parse("Home")!!,
+        visitingName = TeamName.parse("Visiting")!!,
       )
 
     val pdf = data.toPdfBytes().decodeToString()

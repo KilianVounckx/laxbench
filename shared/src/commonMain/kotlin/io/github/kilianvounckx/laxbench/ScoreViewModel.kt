@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Goals
 import io.github.kilianvounckx.laxbench.domain.Score
+import io.github.kilianvounckx.laxbench.domain.TeamInfo
+import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,9 +104,15 @@ class ScoreViewModel : ViewModel() {
   }
 }
 
-/** Display label for a [ScoreViewModel.Team], as shown in the UI. */
-fun ScoreViewModel.Team.label(): String =
-  when (this) {
-    ScoreViewModel.Team.HOME -> "Home"
-    ScoreViewModel.Team.VISITING -> "Visiting"
+/** Returns the [TeamInfo] entered for [team] within [this] game. */
+fun TeamsInfo.info(team: ScoreViewModel.Team): TeamInfo =
+  when (team) {
+    ScoreViewModel.Team.HOME -> home
+    ScoreViewModel.Team.VISITING -> visiting
   }
+
+/**
+ * Returns the display label for [team] within [this] game, e.g. "Lions (Red)" -- replaces the old
+ * hardcoded "Home"/"Visiting" label.
+ */
+fun TeamsInfo.label(team: ScoreViewModel.Team): String = info(team).label()

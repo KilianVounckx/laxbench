@@ -7,6 +7,7 @@ import io.github.kilianvounckx.laxbench.domain.Fouls
 import io.github.kilianvounckx.laxbench.domain.Goals
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
 import io.github.kilianvounckx.laxbench.domain.Saves
+import io.github.kilianvounckx.laxbench.domain.TeamName
 import io.github.kilianvounckx.laxbench.domain.TimeOuts
 
 data class ScoreSheetData(
@@ -18,6 +19,8 @@ data class ScoreSheetData(
   val visitingSaves: Int,
   val homeFaceOffs: Int,
   val visitingFaceOffs: Int,
+  val homeName: TeamName,
+  val visitingName: TeamName,
 ) {
   companion object {
     fun of(
@@ -31,6 +34,8 @@ data class ScoreSheetData(
       visitingSaves: Saves,
       homeFaceOffs: FaceOffs,
       visitingFaceOffs: FaceOffs,
+      homeName: TeamName,
+      visitingName: TeamName,
     ): ScoreSheetData {
       val combinedGoals =
         homeGoals.all.map { ScoreViewModel.Team.HOME to it } +
@@ -68,6 +73,8 @@ data class ScoreSheetData(
         visitingSaves = visitingSaves.all.size,
         homeFaceOffs = homeFaceOffs.all.size,
         visitingFaceOffs = visitingFaceOffs.all.size,
+        homeName = homeName,
+        visitingName = visitingName,
       )
     }
   }

@@ -32,6 +32,13 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
     y -= ROW_HEIGHT
   }
 
+  /** Returns the plain name of the given team from the scoresheet data. */
+  fun nameOf(team: ScoreViewModel.Team): String =
+    when (team) {
+      ScoreViewModel.Team.HOME -> homeName.value
+      ScoreViewModel.Team.VISITING -> visitingName.value
+    }
+
   /**
    * Renders a table: [header] cells drawn once, immediately followed by a hairline separator, then
    * every entry of [rows] (each the list of (x, text) cells for that row). If a row no longer fits
@@ -71,7 +78,7 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
       goals.map { g ->
         listOf(
           40 to g.elapsedTime.format(),
-          105 to g.team.label(),
+          105 to nameOf(g.team),
           165 to "${g.homeScoreAfter}:${g.visitingScoreAfter}",
           225 to g.scorer.number.toString(),
           285 to (g.assist?.number?.toString() ?: ""),
@@ -88,7 +95,7 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
       fouls.map { f ->
         listOf(
           40 to f.elapsedTime.format(),
-          105 to f.team.label(),
+          105 to nameOf(f.team),
           165 to f.player.number.toString(),
           215 to f.severity.typeLabel(),
           425 to (f.severity.durationLabel() ?: ""),
@@ -98,20 +105,20 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
   y -= SECTION_GAP
 
   line("Time-outs", bold = true, size = 12)
-  line("Home", bold = true)
+  line(homeName.value, bold = true)
   if (homeTimeOuts.isEmpty()) line("None") else homeTimeOuts.forEach { line(it.format()) }
-  line("Visiting", bold = true)
+  line(visitingName.value, bold = true)
   if (visitingTimeOuts.isEmpty()) line("None") else visitingTimeOuts.forEach { line(it.format()) }
   y -= SECTION_GAP
 
   line("Saves", bold = true, size = 12)
-  line("Home: $homeSaves")
-  line("Visiting: $visitingSaves")
+  line("${homeName.value}: $homeSaves")
+  line("${visitingName.value}: $visitingSaves")
   y -= SECTION_GAP
 
   line("Face-offs", bold = true, size = 12)
-  line("Home: $homeFaceOffs")
-  line("Visiting: $visitingFaceOffs")
+  line("${homeName.value}: $homeFaceOffs")
+  line("${visitingName.value}: $visitingFaceOffs")
 
   return document.build()
 }
