@@ -40,8 +40,8 @@ class ScoreViewModel : ViewModel() {
 
   /** Which side of the score tracker a goal, or a correction, belongs to. */
   enum class Team {
-    OUR,
-    OPPONENT,
+    HOME,
+    VISITING,
   }
 
   private val _ourScore = MutableStateFlow(Score.zero)
@@ -59,11 +59,11 @@ class ScoreViewModel : ViewModel() {
    */
   fun recordGoal(team: Team, goal: Goal) {
     when (team) {
-      Team.OUR -> {
+      Team.HOME -> {
         _ourScore.update { it.incremented() }
         _ourGoals.update { it.recorded(goal) }
       }
-      Team.OPPONENT -> {
+      Team.VISITING -> {
         _opponentScore.update { it.incremented() }
         _opponentGoals.update { it.recorded(goal) }
       }
@@ -77,11 +77,11 @@ class ScoreViewModel : ViewModel() {
    */
   fun decrementScore(team: Team) {
     when (team) {
-      Team.OUR -> {
+      Team.HOME -> {
         _ourScore.update { it.decremented() }
         _ourGoals.update { it.latestRemoved() }
       }
-      Team.OPPONENT -> {
+      Team.VISITING -> {
         _opponentScore.update { it.decremented() }
         _opponentGoals.update { it.latestRemoved() }
       }

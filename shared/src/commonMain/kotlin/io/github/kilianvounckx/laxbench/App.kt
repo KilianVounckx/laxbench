@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
+import io.github.kilianvounckx.laxbench.domain.Foul
 import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Score
 
@@ -39,6 +40,16 @@ private data class GoalDialogRequest(
   val elapsedTime: ElapsedTime,
 )
 
+/**
+ * The elapsed game time captured at the moment the "Foul" button was tapped (see [App] and
+ * [FoulDialog]), held unchanged for the rest of the foul-recording pop-up flow so the eventually
+ * recorded foul is timestamped to when it happened, not to whenever the multi-step form is
+ * eventually completed -- mirroring [GoalDialogRequest]'s rationale. Unlike [GoalDialogRequest],
+ * this does not also capture the team, since which team committed the foul is chosen as the first
+ * step inside [FoulDialog] itself (there is no per-team "Foul" button to tap).
+ */
+private data class FoulDialogRequest(val elapsedTime: ElapsedTime)
+
 @Composable
 @Preview
 fun App() {
@@ -51,7 +62,10 @@ fun App() {
     val ourScore by scoreViewModel.ourScore.collectAsStateWithLifecycle()
     val opponentScore by scoreViewModel.opponentScore.collectAsStateWithLifecycle()
 
+    val foulViewModel: FoulViewModel = viewModel { FoulViewModel() }
+
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
+    var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
 
     Column(
       modifier = Modifier.safeContentPadding().fillMaxSize(),
@@ -63,18 +77,18 @@ fun App() {
           score = ourScore,
           onTap = {
             goalDialogRequest =
-              GoalDialogRequest(ScoreViewModel.Team.OUR, timerViewModel.elapsedTime.value)
+              GoalDialogRequest(ScoreViewModel.Team.HOME, timerViewModel.elapsedTime.value)
           },
-          onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.OUR) },
+          onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.HOME) },
         )
         Text(text = " - ", style = MaterialTheme.typography.headlineMedium)
         ScoreNumber(
           score = opponentScore,
           onTap = {
             goalDialogRequest =
-              GoalDialogRequest(ScoreViewModel.Team.OPPONENT, timerViewModel.elapsedTime.value)
+              GoalDialogRequest(ScoreViewModel.Team.VISITING, timerViewModel.elapsedTime.value)
           },
-          onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.OPPONENT) },
+          onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.VISITING) },
         )
       }
       Spacer(modifier = Modifier.height(16.dp))
@@ -91,7 +105,20 @@ fun App() {
         )
       }
       Spacer(modifier = Modifier.height(16.dp))
-      Button(onClick = { scoreViewModel.printDebugSummary() }) { Text("Print debug summary") }
+      Button(
+        onClick = { foulDialogRequest = FoulDialogRequest(timerViewModel.elapsedTime.value) }
+      ) {
+        Text("Foul")
+      }
+      Spacer(modifier = Modifier.height(16.dp))
+      Button(
+        onClick = {
+          scoreViewModel.printDebugSummary()
+          foulViewModel.printDebugSummary()
+        }
+      ) {
+        Text("Print debug summary")
+      }
     }
 
     goalDialogRequest?.let { request ->
@@ -104,6 +131,19 @@ fun App() {
           goalDialogRequest = null
         },
         onDismiss = { goalDialogRequest = null },
+      )
+    }
+
+    foulDialogRequest?.let { request ->
+      FoulDialog(
+        onConfirm = { team, player, severity ->
+          foulViewModel.recordFoul(
+            team,
+            Foul(player = player, severity = severity, elapsedTime = request.elapsedTime),
+          )
+          foulDialogRequest = null
+        },
+        onDismiss = { foulDialogRequest = null },
       )
     }
   }
