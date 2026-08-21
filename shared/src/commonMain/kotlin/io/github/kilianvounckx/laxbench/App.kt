@@ -26,6 +26,7 @@ import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.Foul
 import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Score
+import io.github.kilianvounckx.laxbench.domain.TimeOut
 
 /**
  * State backing the goal-recording pop-up (see [App] and [GoalDialog]): which
@@ -50,6 +51,18 @@ private data class GoalDialogRequest(
  */
 private data class FoulDialogRequest(val elapsedTime: ElapsedTime)
 
+/**
+ * The elapsed game time captured at the moment the "Stop all clocks" button was tapped -- i.e. the
+ * [TimerViewModel.RunState.Running] -> [TimerViewModel.RunState.Paused] transition (see [App] and
+ * [TimeOutDialog]) -- held unchanged for as long as the time-out pop-up stays open, so a team
+ * time-out eventually recorded from it is timestamped to when the clocks were actually stopped, not
+ * to whenever the pop-up is eventually closed. This is read right after [TimerViewModel.toggle]
+ * runs (not before it, and not from the separately-collected `elapsedTime` UI state), since
+ * [toggle] synchronously freezes the exact elapsed time at the pause instant, which is more precise
+ * than whatever value was last ticked before the tap.
+ */
+private data class TimeOutDialogRequest(val elapsedTime: ElapsedTime)
+
 @Composable
 @Preview
 fun App() {
@@ -63,9 +76,11 @@ fun App() {
     val opponentScore by scoreViewModel.opponentScore.collectAsStateWithLifecycle()
 
     val foulViewModel: FoulViewModel = viewModel { FoulViewModel() }
+    val timeOutViewModel: TimeOutViewModel = viewModel { TimeOutViewModel() }
 
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
     var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
+    var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
 
     Column(
       modifier = Modifier.safeContentPadding().fillMaxSize(),
@@ -94,7 +109,15 @@ fun App() {
       Spacer(modifier = Modifier.height(16.dp))
       Text(text = elapsedTime.format(), style = MaterialTheme.typography.displayMedium)
       Spacer(modifier = Modifier.height(16.dp))
-      Button(onClick = { timerViewModel.toggle() }) {
+      Button(
+        onClick = {
+          val wasRunning = runState == TimerViewModel.RunState.Running
+          timerViewModel.toggle()
+          if (wasRunning) {
+            timeOutDialogRequest = TimeOutDialogRequest(timerViewModel.elapsedTime.value)
+          }
+        }
+      ) {
         Text(
           text =
             when (runState) {
@@ -115,6 +138,7 @@ fun App() {
         onClick = {
           scoreViewModel.printDebugSummary()
           foulViewModel.printDebugSummary()
+          timeOutViewModel.printDebugSummary()
         }
       ) {
         Text("Print debug summary")
@@ -144,6 +168,16 @@ fun App() {
           foulDialogRequest = null
         },
         onDismiss = { foulDialogRequest = null },
+      )
+    }
+
+    timeOutDialogRequest?.let { request ->
+      TimeOutDialog(
+        onConfirm = { team ->
+          timeOutViewModel.recordTimeOut(team, TimeOut(elapsedTime = request.elapsedTime))
+          timeOutDialogRequest = null
+        },
+        onDismiss = { timeOutDialogRequest = null },
       )
     }
   }
