@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
+import io.github.kilianvounckx.laxbench.domain.FaceOff
 import io.github.kilianvounckx.laxbench.domain.Foul
 import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Save
@@ -61,6 +62,14 @@ private data class FoulDialogRequest(val elapsedTime: ElapsedTime)
 private data class SaveDialogRequest(val elapsedTime: ElapsedTime)
 
 /**
+ * The elapsed game time captured at the moment the "Face-off" button was tapped (see [App] and
+ * [FaceOffDialog]), held unchanged for as long as the face-off-recording pop-up stays open, so the
+ * eventually recorded face-off win is timestamped to when it happened, not to whenever the team
+ * choice is eventually made -- mirroring [SaveDialogRequest]'s rationale.
+ */
+private data class FaceOffDialogRequest(val elapsedTime: ElapsedTime)
+
+/**
  * The elapsed game time captured at the moment the "Stop all clocks" button was tapped -- i.e. the
  * [TimerViewModel.RunState.Running] -> [TimerViewModel.RunState.Paused] transition (see [App] and
  * [TimeOutDialog]) -- held unchanged for as long as the time-out pop-up stays open, so a team
@@ -86,11 +95,13 @@ fun App() {
 
     val foulViewModel: FoulViewModel = viewModel { FoulViewModel() }
     val saveViewModel: SaveViewModel = viewModel { SaveViewModel() }
+    val faceOffViewModel: FaceOffViewModel = viewModel { FaceOffViewModel() }
     val timeOutViewModel: TimeOutViewModel = viewModel { TimeOutViewModel() }
 
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
     var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
     var saveDialogRequest by remember { mutableStateOf<SaveDialogRequest?>(null) }
+    var faceOffDialogRequest by remember { mutableStateOf<FaceOffDialogRequest?>(null) }
     var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
 
     Column(
@@ -152,11 +163,18 @@ fun App() {
       }
       Spacer(modifier = Modifier.height(16.dp))
       Button(
+        onClick = { faceOffDialogRequest = FaceOffDialogRequest(timerViewModel.elapsedTime.value) }
+      ) {
+        Text("Face-off")
+      }
+      Spacer(modifier = Modifier.height(16.dp))
+      Button(
         onClick = {
           scoreViewModel.printDebugSummary()
           foulViewModel.printDebugSummary()
           timeOutViewModel.printDebugSummary()
           saveViewModel.printDebugSummary()
+          faceOffViewModel.printDebugSummary()
         }
       ) {
         Text("Print debug summary")
@@ -206,6 +224,16 @@ fun App() {
           saveDialogRequest = null
         },
         onDismiss = { saveDialogRequest = null },
+      )
+    }
+
+    faceOffDialogRequest?.let { request ->
+      FaceOffDialog(
+        onConfirm = { team ->
+          faceOffViewModel.recordFaceOff(team, FaceOff(elapsedTime = request.elapsedTime))
+          faceOffDialogRequest = null
+        },
+        onDismiss = { faceOffDialogRequest = null },
       )
     }
   }
