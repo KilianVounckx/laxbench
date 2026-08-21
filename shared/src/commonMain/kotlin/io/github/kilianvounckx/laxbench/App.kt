@@ -25,6 +25,7 @@ fun App() {
     val timerViewModel: TimerViewModel = viewModel { TimerViewModel() }
     val elapsedTime by timerViewModel.elapsedTime.collectAsStateWithLifecycle()
     val isRunning by timerViewModel.isRunning.collectAsStateWithLifecycle()
+    val hasStarted by timerViewModel.hasStarted.collectAsStateWithLifecycle()
 
     Column(
       modifier = Modifier.safeContentPadding().fillMaxSize(),
@@ -34,7 +35,14 @@ fun App() {
       Text(text = elapsedTime.format(), style = MaterialTheme.typography.displayMedium)
       Spacer(modifier = Modifier.height(16.dp))
       Button(onClick = { timerViewModel.toggle() }) {
-        Text(text = if (isRunning) "Stop all clocks" else "Resume game")
+        Text(
+          text =
+            when {
+              !hasStarted -> "Start game"
+              isRunning -> "Stop all clocks"
+              else -> "Resume game"
+            }
+        )
       }
     }
   }
