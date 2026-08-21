@@ -25,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.Foul
 import io.github.kilianvounckx.laxbench.domain.Goal
+import io.github.kilianvounckx.laxbench.domain.Save
 import io.github.kilianvounckx.laxbench.domain.Score
 import io.github.kilianvounckx.laxbench.domain.TimeOut
 
@@ -52,6 +53,14 @@ private data class GoalDialogRequest(
 private data class FoulDialogRequest(val elapsedTime: ElapsedTime)
 
 /**
+ * The elapsed game time captured at the moment the "Save" button was tapped (see [App] and
+ * [SaveDialog]), held unchanged for as long as the save-recording pop-up stays open, so the
+ * eventually recorded save is timestamped to when it happened, not to whenever the team choice is
+ * eventually made -- mirroring [FoulDialogRequest]'s rationale.
+ */
+private data class SaveDialogRequest(val elapsedTime: ElapsedTime)
+
+/**
  * The elapsed game time captured at the moment the "Stop all clocks" button was tapped -- i.e. the
  * [TimerViewModel.RunState.Running] -> [TimerViewModel.RunState.Paused] transition (see [App] and
  * [TimeOutDialog]) -- held unchanged for as long as the time-out pop-up stays open, so a team
@@ -76,10 +85,12 @@ fun App() {
     val opponentScore by scoreViewModel.opponentScore.collectAsStateWithLifecycle()
 
     val foulViewModel: FoulViewModel = viewModel { FoulViewModel() }
+    val saveViewModel: SaveViewModel = viewModel { SaveViewModel() }
     val timeOutViewModel: TimeOutViewModel = viewModel { TimeOutViewModel() }
 
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
     var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
+    var saveDialogRequest by remember { mutableStateOf<SaveDialogRequest?>(null) }
     var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
 
     Column(
@@ -135,10 +146,17 @@ fun App() {
       }
       Spacer(modifier = Modifier.height(16.dp))
       Button(
+        onClick = { saveDialogRequest = SaveDialogRequest(timerViewModel.elapsedTime.value) }
+      ) {
+        Text("Save")
+      }
+      Spacer(modifier = Modifier.height(16.dp))
+      Button(
         onClick = {
           scoreViewModel.printDebugSummary()
           foulViewModel.printDebugSummary()
           timeOutViewModel.printDebugSummary()
+          saveViewModel.printDebugSummary()
         }
       ) {
         Text("Print debug summary")
@@ -178,6 +196,16 @@ fun App() {
           timeOutDialogRequest = null
         },
         onDismiss = { timeOutDialogRequest = null },
+      )
+    }
+
+    saveDialogRequest?.let { request ->
+      SaveDialog(
+        onConfirm = { team ->
+          saveViewModel.recordSave(team, Save(elapsedTime = request.elapsedTime))
+          saveDialogRequest = null
+        },
+        onDismiss = { saveDialogRequest = null },
       )
     }
   }
