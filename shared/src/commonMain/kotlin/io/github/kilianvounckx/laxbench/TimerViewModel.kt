@@ -3,46 +3,62 @@ package io.github.kilianvounckx.laxbench
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
+import io.github.kilianvounckx.laxbench.domain.TimerState
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Publishes the time elapsed since this [TimerViewModel] was created.
+ * Publishes the time elapsed since this [TimerViewModel] was created, and lets that timer be paused
+ * and resumed any number of times via [toggle].
  *
- * The timer starts automatically the instant this instance is created (i.e. the instant the app
- * launches) and runs indefinitely: there is deliberately no way to stop, pause, or reset it — no
- * such method exists on this class, matching the explicit "no start/stop/pause/reset controls of
- * any kind" requirement. A single monotonic start mark is recorded once, in the property
- * initializer, and every tick simply recomputes elapsed time as "now minus that mark" — so the
- * published value never drifts from coroutine scheduling jitter and there is no per-tick
- * accumulation state to keep in sync.
+ * The timer starts automatically, running, the instant this instance is created (i.e. the instant
+ * the app launches). All pause/resume bookkeeping — freezing the displayed value on pause and
+ * resuming it from exactly that value with no drift or double-counting of paused time — is done by
+ * [TimerState], a pure domain type; this class only holds the current [TimerState], re-derives
+ * [elapsedTime] from it on a fixed tick, and re-derives both [elapsedTime] and [isRunning]
+ * immediately whenever [toggle] is called (rather than waiting up to [TICK_INTERVAL] for the next
+ * tick), so the displayed value and button label update instantly on click.
  *
  * As an androidx.lifecycle `ViewModel` obtained via the Compose Multiplatform `viewModel()` API, a
  * single instance of this class is retained by the platform's `ViewModelStore` for as long as its
  * owner is alive. On Android that includes surviving a configuration change such as rotation: the
- * same instance (same start mark, same coroutine already ticking in [viewModelScope]) is reused
- * rather than recreated, so the displayed time keeps counting up correctly across rotation with no
- * Android-specific code required here or anywhere else in the app.
+ * same instance (same [TimerState], same coroutine already ticking in [viewModelScope]) is reused
+ * rather than recreated, so the displayed time and pause/resume state keep counting/holding
+ * correctly across rotation with no Android-specific code required here or anywhere else in the
+ * app.
  */
 class TimerViewModel : ViewModel() {
 
-  private val startMark = TimeSource.Monotonic.markNow()
+  private val _state = MutableStateFlow(TimerState.initial(TimeSource.Monotonic.markNow()))
 
   private val _elapsedTime = MutableStateFlow(ElapsedTime.zero)
   val elapsedTime: StateFlow<ElapsedTime> = _elapsedTime.asStateFlow()
 
+  private val _isRunning = MutableStateFlow(true)
+  val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+
   init {
     viewModelScope.launch {
       while (true) {
-        _elapsedTime.value = ElapsedTime.of(startMark.elapsedNow()) ?: ElapsedTime.zero
+        _elapsedTime.value = _state.value.elapsedTime(TimeSource.Monotonic.markNow())
         delay(TICK_INTERVAL)
       }
     }
+  }
+
+  /** Toggles between running and paused; see [TimerState.toggled]. */
+  fun toggle() {
+    val now = TimeSource.Monotonic.markNow()
+    _state.update { it.toggled(now) }
+    val newState = _state.value
+    _isRunning.value = newState is TimerState.Running
+    _elapsedTime.value = newState.elapsedTime(now)
   }
 
   private companion object {
