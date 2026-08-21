@@ -30,7 +30,24 @@ for its entire lifetime; don't re-validate the same thing at every call site.
 Not mechanically enforceable — checked in review against this file (see
 `.claude/agents/feature-reviewer.md`).
 
-## 3. Code reuse — avoid duplication
+## 3. Enums over boolean flags
+
+Prefer a custom enum over a boolean parameter, property, or field almost every time, even when
+there are currently only two possible states. A boolean's meaning depends entirely on its name and
+reads only as well as the call site does (`hidden = true`); a two-or-more-value enum documents
+itself at every call site (`Visibility.HIDDEN`) and leaves room to grow a third state later without
+resorting to a second boolean or a null-as-third-state hack. This applies equally to
+constructor/function parameters, class properties, and stored fields.
+
+A plain boolean is still fine when it's a genuine, self-explanatory yes/no answer with no
+plausible third state and no ambiguity at the call site (e.g. a computed `isEmpty`, or a
+`contains(...): Boolean` return value), or when a platform/library API you don't control mandates
+one.
+
+Not mechanically enforceable — checked in review against this file (see
+`.claude/agents/feature-reviewer.md`).
+
+## 4. Code reuse — avoid duplication
 
 Functional code — domain logic, business rules, general-purpose logic of any kind — must be
 extracted to a single shared place rather than copy-pasted or reimplemented wherever it's needed
@@ -52,7 +69,7 @@ change together; tolerate duplication when they merely look similar right now.
 Not mechanically enforceable — "is this truly the same thing" is a judgment call, so it's checked
 in review against this file (see `.claude/agents/feature-reviewer.md`).
 
-## 4. Tests
+## 5. Tests
 
 Every non-private function in the domain layer (`io.github.kilianvounckx.laxbench.domain`) must
 have tests. Other code may be tested if it gets complicated enough to warrant it, but isn't
@@ -65,7 +82,7 @@ through, so review still matters here too.
 
 Run: `./gradlew :shared:koverVerify`
 
-## 5. Formatting
+## 6. Formatting
 
 All Kotlin files (including `.gradle.kts` build scripts) are formatted with ktfmt, Google style.
 Applied to every subproject via a `subprojects {}` block in the root `build.gradle.kts`; wired
@@ -73,7 +90,7 @@ into each module's `check` task automatically by the ktfmt plugin.
 
 Run: `./gradlew ktfmtFormat` to format, `./gradlew ktfmtCheck` to verify without changing files.
 
-## 6. No unused code
+## 7. No unused code
 
 No unused variables, functions, parameters, or imports. Enforced by treating all Kotlin compiler
 warnings as errors (`allWarningsAsErrors`, set for every subproject in the root `build.gradle.kts`)
@@ -81,7 +98,7 @@ warnings as errors (`allWarningsAsErrors`, set for every subproject in the root 
 those warnings into build failures. This does not catch unused *public* declarations no one calls
 anywhere (the compiler can't know that); watch for that in review.
 
-## 7. Dependency versions in the version catalog
+## 8. Dependency versions in the version catalog
 
 Every Gradle dependency and plugin version must be declared in `gradle/libs.versions.toml`, never
 as a literal in a `build.gradle.kts`. (`settings.gradle.kts` is exempt: the `pluginManagement`
