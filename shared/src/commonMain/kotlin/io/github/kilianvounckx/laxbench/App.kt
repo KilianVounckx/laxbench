@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,10 @@ import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Save
 import io.github.kilianvounckx.laxbench.domain.Score
 import io.github.kilianvounckx.laxbench.domain.TimeOut
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
+
+private val BLINK_INTERVAL = 500.milliseconds
 
 /**
  * State backing the goal-recording pop-up (see [App] and [GoalDialog]): which
@@ -97,6 +102,15 @@ fun App() {
     val saveViewModel: SaveViewModel = viewModel { SaveViewModel() }
     val faceOffViewModel: FaceOffViewModel = viewModel { FaceOffViewModel() }
     val timeOutViewModel: TimeOutViewModel = viewModel { TimeOutViewModel() }
+    val timeOutCountdownViewModel: TimeOutCountdownViewModel = viewModel {
+      TimeOutCountdownViewModel()
+    }
+    val timeOutCountdownRemainingTime by
+      timeOutCountdownViewModel.remainingTime.collectAsStateWithLifecycle()
+    val timeOutCountdownIsExpired by
+      timeOutCountdownViewModel.isExpired.collectAsStateWithLifecycle()
+    val timeOutCountdownIsVisible by
+      timeOutCountdownViewModel.isVisible.collectAsStateWithLifecycle()
 
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
     var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
@@ -133,10 +147,21 @@ fun App() {
       Spacer(modifier = Modifier.height(16.dp))
       Button(
         onClick = {
-          val wasRunning = runState == TimerViewModel.RunState.Running
-          timerViewModel.toggle()
-          if (wasRunning) {
-            timeOutDialogRequest = TimeOutDialogRequest(timerViewModel.elapsedTime.value)
+          when (runState) {
+            TimerViewModel.RunState.Paused -> {
+              timeOutCountdownViewModel.cancel()
+              timeOutDialogRequest = null
+              timerViewModel.toggle()
+            }
+            TimerViewModel.RunState.NotStarted,
+            TimerViewModel.RunState.Running -> {
+              val wasRunning = runState == TimerViewModel.RunState.Running
+              timerViewModel.toggle()
+              if (wasRunning) {
+                timeOutDialogRequest = TimeOutDialogRequest(timerViewModel.elapsedTime.value)
+                timeOutCountdownViewModel.start()
+              }
+            }
           }
         }
       ) {
@@ -150,6 +175,12 @@ fun App() {
         )
       }
       Spacer(modifier = Modifier.height(16.dp))
+      if (timeOutCountdownIsVisible) {
+        timeOutCountdownRemainingTime?.let { remaining ->
+          TimeOutCountdownDisplay(remainingTime = remaining, isExpired = timeOutCountdownIsExpired)
+          Spacer(modifier = Modifier.height(16.dp))
+        }
+      }
       Button(
         onClick = { foulDialogRequest = FoulDialogRequest(timerViewModel.elapsedTime.value) }
       ) {
@@ -211,9 +242,13 @@ fun App() {
       TimeOutDialog(
         onConfirm = { team ->
           timeOutViewModel.recordTimeOut(team, TimeOut(elapsedTime = request.elapsedTime))
+          timeOutCountdownViewModel.show()
           timeOutDialogRequest = null
         },
-        onDismiss = { timeOutDialogRequest = null },
+        onDismiss = {
+          timeOutCountdownViewModel.cancel()
+          timeOutDialogRequest = null
+        },
       )
     }
 
@@ -253,5 +288,37 @@ private fun ScoreNumber(score: Score, onTap: () -> Unit, onLongPress: () -> Unit
     text = score.count.toString(),
     style = MaterialTheme.typography.headlineMedium,
     modifier = Modifier.combinedClickable(onClick = onTap, onLongClick = onLongPress),
+  )
+}
+
+/**
+ * The visible portion of the time-out countdown started the instant the clocks are stopped (see
+ * [App], [TimeOutCountdownViewModel], and [TimeOutDialog]): renders [remainingTime] the same way
+ * the main game clock is rendered, and once [isExpired], blinks by alternating its text color
+ * between the theme's normal content color and its error color on a fixed interval instead of
+ * counting any further -- there is nothing left to count down once frozen at zero, so the blink is
+ * a plain, purely visual, indefinitely-repeating cue that 90 seconds have elapsed, with no other
+ * effect (no sound/haptics, per the feature's non-goals). The text itself is never hidden; only its
+ * color changes.
+ */
+@Composable
+private fun TimeOutCountdownDisplay(remainingTime: ElapsedTime, isExpired: Boolean) {
+  var blinkShowsErrorColor by remember { mutableStateOf(false) }
+  LaunchedEffect(isExpired) {
+    if (isExpired) {
+      while (true) {
+        delay(BLINK_INTERVAL)
+        blinkShowsErrorColor = !blinkShowsErrorColor
+      }
+    } else {
+      blinkShowsErrorColor = false
+    }
+  }
+  Text(
+    text = "Time-out: ${remainingTime.format()}",
+    style = MaterialTheme.typography.headlineSmall,
+    color =
+      if (isExpired && blinkShowsErrorColor) MaterialTheme.colorScheme.error
+      else MaterialTheme.colorScheme.onSurface,
   )
 }
