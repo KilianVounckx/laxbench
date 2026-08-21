@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.update
  * same in-memory-only, non-persisted way [ScoreViewModel] holds each team's goal history. There is
  * no requirement to display foul counts/history anywhere in the main UI, and no undo/correction
  * mechanism for a mistakenly recorded foul -- so unlike [ScoreViewModel] this class exposes no
- * `StateFlow` and no decrement/removal operation: [recordFoul] is the only way to change either
- * team's history, and [printDebugSummary] is the only way to observe it.
+ * reactive `StateFlow` and no decrement/removal operation: [recordFoul] is the only way to change
+ * either team's history. Reading it back is always a one-shot snapshot, never a subscription:
+ * [printDebugSummary] prints both teams' histories at once for debugging, and [fouls] returns a
+ * single team's current history on demand (e.g. for building an exported scoresheet).
  *
  * This class reuses [ScoreViewModel.Team] to identify which side committed a foul, rather than
  * defining a second, parallel team enum -- this [FoulViewModel] and [ScoreViewModel] independently
@@ -35,6 +37,13 @@ class FoulViewModel : ViewModel() {
       ScoreViewModel.Team.VISITING -> _visitingFouls.update { it.recorded(foul) }
     }
   }
+
+  /** Returns the foul history for the given [team]. */
+  fun fouls(team: ScoreViewModel.Team): Fouls =
+    when (team) {
+      ScoreViewModel.Team.HOME -> _homeFouls.value
+      ScoreViewModel.Team.VISITING -> _visitingFouls.value
+    }
 
   /** Prints both teams' recorded foul histories, for debugging. */
   fun printDebugSummary() {

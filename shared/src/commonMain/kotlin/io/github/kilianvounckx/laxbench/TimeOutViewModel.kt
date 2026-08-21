@@ -11,9 +11,11 @@ import kotlinx.coroutines.flow.update
  * session, the same in-memory-only, non-persisted way [FoulViewModel] holds each team's foul
  * history. There is no requirement to display time-out counts/history anywhere in the main UI, no
  * maximum-number-of-time-outs rule to enforce, and no undo/correction mechanism for a mistakenly
- * recorded time-out -- so, like [FoulViewModel], this class exposes no `StateFlow` and no
- * decrement/removal operation: [recordTimeOut] is the only way to change either team's history, and
- * [printDebugSummary] is the only way to observe it.
+ * recorded time-out -- so, like [FoulViewModel], this class exposes no reactive `StateFlow` and no
+ * decrement/removal operation: [recordTimeOut] is the only way to change either team's history.
+ * Reading it back is always a one-shot snapshot, never a subscription: [printDebugSummary] prints
+ * both teams' histories at once for debugging, and [timeOuts] returns a single team's current
+ * history on demand (e.g. for building an exported scoresheet).
  *
  * This class reuses [ScoreViewModel.Team] to identify which side requested a time-out, rather than
  * defining a third, parallel team enum -- this [TimeOutViewModel], [FoulViewModel], and
@@ -36,6 +38,13 @@ class TimeOutViewModel : ViewModel() {
       ScoreViewModel.Team.VISITING -> _visitingTimeOuts.update { it.recorded(timeOut) }
     }
   }
+
+  /** Returns the time-out history for the given [team]. */
+  fun timeOuts(team: ScoreViewModel.Team): TimeOuts =
+    when (team) {
+      ScoreViewModel.Team.HOME -> _homeTimeOuts.value
+      ScoreViewModel.Team.VISITING -> _visitingTimeOuts.value
+    }
 
   /** Prints both teams' recorded time-out histories, for debugging. */
   fun printDebugSummary() {

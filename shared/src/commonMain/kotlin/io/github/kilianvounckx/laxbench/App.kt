@@ -112,6 +112,8 @@ fun App() {
     val timeOutCountdownIsVisible by
       timeOutCountdownViewModel.isVisible.collectAsStateWithLifecycle()
 
+    val pdfSaver = rememberPdfSaver()
+
     var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
     var foulDialogRequest by remember { mutableStateOf<FoulDialogRequest?>(null) }
     var saveDialogRequest by remember { mutableStateOf<SaveDialogRequest?>(null) }
@@ -197,6 +199,27 @@ fun App() {
         onClick = { faceOffDialogRequest = FaceOffDialogRequest(timerViewModel.elapsedTime.value) }
       ) {
         Text("Face-off")
+      }
+      Spacer(modifier = Modifier.height(16.dp))
+      Button(
+        onClick = {
+          val data =
+            ScoreSheetData.of(
+              homeGoals = scoreViewModel.goals(ScoreViewModel.Team.HOME),
+              visitingGoals = scoreViewModel.goals(ScoreViewModel.Team.VISITING),
+              homeFouls = foulViewModel.fouls(ScoreViewModel.Team.HOME),
+              visitingFouls = foulViewModel.fouls(ScoreViewModel.Team.VISITING),
+              homeTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.HOME),
+              visitingTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.VISITING),
+              homeSaves = saveViewModel.saves(ScoreViewModel.Team.HOME),
+              visitingSaves = saveViewModel.saves(ScoreViewModel.Team.VISITING),
+              homeFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.HOME),
+              visitingFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.VISITING),
+            )
+          pdfSaver.save("laxbench-scoresheet.pdf", data.toPdfBytes())
+        }
+      ) {
+        Text("Generate PDF")
       }
       Spacer(modifier = Modifier.height(16.dp))
       Button(

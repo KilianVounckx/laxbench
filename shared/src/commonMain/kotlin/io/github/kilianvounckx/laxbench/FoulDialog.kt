@@ -74,13 +74,6 @@ private fun FoulDialogStep.previous(): FoulDialogStep? =
     is FoulDialogStep.ChooseFoulDuration -> FoulDialogStep.ChooseMajorType(team, player)
   }
 
-/** Display label for [team], as shown on the team-choice buttons in [FoulDialog]. */
-private fun ScoreViewModel.Team.label(): String =
-  when (this) {
-    ScoreViewModel.Team.HOME -> "Home"
-    ScoreViewModel.Team.VISITING -> "Visiting"
-  }
-
 /**
  * A multi-step pop-up for recording a foul, analogous to [GoalDialog] but with more steps: which
  * team committed the foul, the offending player's number, and the foul's severity (with a further

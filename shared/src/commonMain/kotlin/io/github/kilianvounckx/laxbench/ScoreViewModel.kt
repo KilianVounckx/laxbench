@@ -88,9 +88,23 @@ class ScoreViewModel : ViewModel() {
     }
   }
 
+  /** Returns the goal history for the given [team]. */
+  fun goals(team: Team): Goals =
+    when (team) {
+      Team.HOME -> _ourGoals.value
+      Team.VISITING -> _opponentGoals.value
+    }
+
   /** Prints both teams' recorded goal histories, for debugging. */
   fun printDebugSummary() {
     println("Our goals: ${_ourGoals.value}")
     println("Opponent goals: ${_opponentGoals.value}")
   }
 }
+
+/** Display label for a [ScoreViewModel.Team], as shown in the UI. */
+fun ScoreViewModel.Team.label(): String =
+  when (this) {
+    ScoreViewModel.Team.HOME -> "Home"
+    ScoreViewModel.Team.VISITING -> "Visiting"
+  }

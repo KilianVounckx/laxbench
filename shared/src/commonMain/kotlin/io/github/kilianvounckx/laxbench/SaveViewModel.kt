@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.update
  * same in-memory-only, non-persisted way [FoulViewModel] and [TimeOutViewModel] hold each team's
  * history. There is no requirement to display save counts/history anywhere in the main UI and no
  * undo/correction mechanism for a mistakenly recorded save -- so, like [TimeOutViewModel], this
- * class exposes no `StateFlow` and no decrement/removal operation: [recordSave] is the only way to
- * change either team's history, and [printDebugSummary] is the only way to observe it.
+ * class exposes no reactive `StateFlow` and no decrement/removal operation: [recordSave] is the
+ * only way to change either team's history. Reading it back is always a one-shot snapshot, never a
+ * subscription: [printDebugSummary] prints both teams' histories at once for debugging, and [saves]
+ * returns a single team's current history on demand (e.g. for building an exported scoresheet).
  *
  * This class reuses [ScoreViewModel.Team] to identify which team's goalie made a save, rather than
  * defining a fourth, parallel team enum -- this [SaveViewModel], [TimeOutViewModel],
@@ -35,6 +37,13 @@ class SaveViewModel : ViewModel() {
       ScoreViewModel.Team.VISITING -> _visitingSaves.update { it.recorded(save) }
     }
   }
+
+  /** Returns the save history for the given [team]. */
+  fun saves(team: ScoreViewModel.Team): Saves =
+    when (team) {
+      ScoreViewModel.Team.HOME -> _homeSaves.value
+      ScoreViewModel.Team.VISITING -> _visitingSaves.value
+    }
 
   /** Prints both teams' recorded save histories, for debugging. */
   fun printDebugSummary() {

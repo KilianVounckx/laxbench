@@ -55,6 +55,7 @@ kotlin {
 
   sourceSets {
     androidMain.dependencies {
+      implementation(libs.androidx.core.ktx)
       implementation(libs.compose.uiToolingPreview)
       implementation(libs.compose.uiTooling)
     }
@@ -68,6 +69,7 @@ kotlin {
       implementation(libs.androidx.lifecycle.runtimeCompose)
     }
     commonTest.dependencies { implementation(libs.kotlin.test) }
+    webMain.dependencies { implementation(libs.kotlinx.browser) }
   }
 }
 

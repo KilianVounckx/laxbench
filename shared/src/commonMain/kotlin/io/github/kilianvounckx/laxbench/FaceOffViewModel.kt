@@ -11,9 +11,11 @@ import kotlinx.coroutines.flow.update
  * session, the same in-memory-only, non-persisted way [SaveViewModel], [FoulViewModel], and
  * [TimeOutViewModel] hold each team's history. There is no requirement to display face-off-win
  * counts/history anywhere in the main UI and no undo/correction mechanism for a mistakenly recorded
- * face-off win -- so, like [SaveViewModel], this class exposes no `StateFlow` and no
- * decrement/removal operation: [recordFaceOff] is the only way to change either team's history, and
- * [printDebugSummary] is the only way to observe it.
+ * face-off win -- so, like [SaveViewModel], this class exposes no reactive `StateFlow` and no
+ * decrement/removal operation: [recordFaceOff] is the only way to change either team's history.
+ * Reading it back is always a one-shot snapshot, never a subscription: [printDebugSummary] prints
+ * both teams' histories at once for debugging, and [faceOffs] returns a single team's current
+ * history on demand (e.g. for building an exported scoresheet).
  *
  * This class reuses [ScoreViewModel.Team] to identify which team won a face-off, rather than
  * defining a fifth, parallel team enum -- this [FaceOffViewModel], [SaveViewModel],
@@ -37,6 +39,13 @@ class FaceOffViewModel : ViewModel() {
       ScoreViewModel.Team.VISITING -> _visitingFaceOffs.update { it.recorded(faceOff) }
     }
   }
+
+  /** Returns the face-off-win history for the given [team]. */
+  fun faceOffs(team: ScoreViewModel.Team): FaceOffs =
+    when (team) {
+      ScoreViewModel.Team.HOME -> _homeFaceOffs.value
+      ScoreViewModel.Team.VISITING -> _visitingFaceOffs.value
+    }
 
   /** Prints both teams' recorded face-off-win histories, for debugging. */
   fun printDebugSummary() {
