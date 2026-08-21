@@ -24,8 +24,7 @@ fun App() {
   MaterialTheme {
     val timerViewModel: TimerViewModel = viewModel { TimerViewModel() }
     val elapsedTime by timerViewModel.elapsedTime.collectAsStateWithLifecycle()
-    val isRunning by timerViewModel.isRunning.collectAsStateWithLifecycle()
-    val hasStarted by timerViewModel.hasStarted.collectAsStateWithLifecycle()
+    val runState by timerViewModel.runState.collectAsStateWithLifecycle()
 
     Column(
       modifier = Modifier.safeContentPadding().fillMaxSize(),
@@ -37,10 +36,10 @@ fun App() {
       Button(onClick = { timerViewModel.toggle() }) {
         Text(
           text =
-            when {
-              !hasStarted -> "Start game"
-              isRunning -> "Stop all clocks"
-              else -> "Resume game"
+            when (runState) {
+              TimerViewModel.RunState.NotStarted -> "Start game"
+              TimerViewModel.RunState.Running -> "Stop all clocks"
+              TimerViewModel.RunState.Paused -> "Resume game"
             }
         )
       }

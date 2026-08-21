@@ -21,10 +21,9 @@ import kotlinx.coroutines.launch
  * elapsed time, and only begins counting up the first time [toggle] is called. All pause/resume
  * bookkeeping — freezing the displayed value on pause and resuming it from exactly that value with
  * no drift or double-counting of paused time — is done by [TimerState], a pure domain type; this
- * class only holds the current [TimerState], re-derives [elapsedTime] from it on a fixed tick, and
- * re-derives [elapsedTime], [isRunning], and [hasStarted] immediately whenever [toggle] is called
- * (rather than waiting up to [TICK_INTERVAL] for the next tick), so the displayed value and button
- * label update instantly on click.
+ * class only holds the current [TimerState], re-derives [elapsedTime] and [runState] immediately
+ * whenever [toggle] is called (rather than waiting up to [TICK_INTERVAL] for the next tick), so the
+ * displayed value and button label update instantly on click.
  *
  * As an androidx.lifecycle `ViewModel` obtained via the Compose Multiplatform `viewModel()` API, a
  * single instance of this class is retained by the platform's `ViewModelStore` for as long as its
@@ -36,16 +35,25 @@ import kotlinx.coroutines.launch
  */
 class TimerViewModel : ViewModel() {
 
+  /**
+   * The three run/pause statuses [TimerState] can be in, without the timing payload ([TimerState]
+   * carries the accumulated/mark/elapsed data needed to compute [ElapsedTime]; this enum exists
+   * purely so callers such as [App] can switch on status — e.g. for the button label — without
+   * depending on [TimerState] or its internal fields).
+   */
+  enum class RunState {
+    NotStarted,
+    Running,
+    Paused,
+  }
+
   private val _state = MutableStateFlow<TimerState>(TimerState.NotStarted)
 
   private val _elapsedTime = MutableStateFlow(ElapsedTime.zero)
   val elapsedTime: StateFlow<ElapsedTime> = _elapsedTime.asStateFlow()
 
-  private val _isRunning = MutableStateFlow(false)
-  val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
-
-  private val _hasStarted = MutableStateFlow(false)
-  val hasStarted: StateFlow<Boolean> = _hasStarted.asStateFlow()
+  private val _runState = MutableStateFlow(RunState.NotStarted)
+  val runState: StateFlow<RunState> = _runState.asStateFlow()
 
   init {
     viewModelScope.launch {
@@ -61,8 +69,12 @@ class TimerViewModel : ViewModel() {
     val now = TimeSource.Monotonic.markNow()
     _state.update { it.toggled(now) }
     val newState = _state.value
-    _hasStarted.value = newState !is TimerState.NotStarted
-    _isRunning.value = newState is TimerState.Running
+    _runState.value =
+      when (newState) {
+        is TimerState.NotStarted -> RunState.NotStarted
+        is TimerState.Running -> RunState.Running
+        is TimerState.Paused -> RunState.Paused
+      }
     _elapsedTime.value = newState.elapsedTime(now)
   }
 
