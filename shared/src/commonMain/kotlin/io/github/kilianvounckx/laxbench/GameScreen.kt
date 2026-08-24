@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -87,6 +89,20 @@ private data class FaceOffDialogRequest(val elapsedTime: ElapsedTime)
  */
 private data class TimeOutDialogRequest(val elapsedTime: ElapsedTime)
 
+private data class ReleasePopup(val id: Long, val player: FoulTimerPlayer)
+
+/**
+ * Which sub-screen of the game view is currently shown: [MAIN] is the ordinary score/timer/buttons
+ * view; [CURRENT_FOULS] is the "Current fouls" list (see `CurrentFoulsScreen`), reached via its
+ * button and left via its own "Back" button. Modeled as an enum rather than a `showCurrentFouls`
+ * boolean, per this repo's enum-over-boolean convention and mirroring [App]'s own `Screen`
+ * sealed-interface pattern for "which screen is shown" one level up.
+ */
+private enum class GameSubScreen {
+  MAIN,
+  CURRENT_FOULS,
+}
+
 /**
  * The game screen displaying the current score, timer, and buttons for recording goals, fouls,
  * saves, face-offs, and time-outs. All per-game ViewModels are obtained from the provided
@@ -123,6 +139,11 @@ internal fun GameScreen(
   val timeOutCountdownIsExpired by timeOutCountdownViewModel.isExpired.collectAsStateWithLifecycle()
   val timeOutCountdownIsVisible by timeOutCountdownViewModel.isVisible.collectAsStateWithLifecycle()
 
+  val foulTimerViewModel: FoulTimerViewModel =
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) { FoulTimerViewModel() }
+  val foulTimerRemainingTimes by foulTimerViewModel.remainingTimes.collectAsStateWithLifecycle()
+  val foulTimerDetails by foulTimerViewModel.details.collectAsStateWithLifecycle()
+
   val pdfSaver = rememberPdfSaver()
 
   var goalDialogRequest by remember { mutableStateOf<GoalDialogRequest?>(null) }
@@ -131,121 +152,167 @@ internal fun GameScreen(
   var faceOffDialogRequest by remember { mutableStateOf<FaceOffDialogRequest?>(null) }
   var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
 
-  Column(
-    modifier = Modifier.safeContentPadding().fillMaxSize(),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
-  ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      ScoreNumber(
-        label = teams.label(ScoreViewModel.Team.HOME),
-        score = ourScore,
-        onTap = {
-          goalDialogRequest =
-            GoalDialogRequest(ScoreViewModel.Team.HOME, timerViewModel.elapsedTime.value)
-        },
-        onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.HOME) },
-      )
-      Text(text = " - ", style = MaterialTheme.typography.headlineMedium)
-      ScoreNumber(
-        label = teams.label(ScoreViewModel.Team.VISITING),
-        score = opponentScore,
-        onTap = {
-          goalDialogRequest =
-            GoalDialogRequest(ScoreViewModel.Team.VISITING, timerViewModel.elapsedTime.value)
-        },
-        onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.VISITING) },
-      )
+  var gameSubScreen by remember { mutableStateOf(GameSubScreen.MAIN) }
+  var cancelFoulTimersRequest by remember { mutableStateOf<FoulTimerPlayer?>(null) }
+  val releasePopups = remember { mutableStateListOf<ReleasePopup>() }
+  LaunchedEffect(foulTimerViewModel) {
+    var nextPopupId = 0L
+    foulTimerViewModel.releaseEvents.collect { player ->
+      releasePopups.add(ReleasePopup(nextPopupId++, player))
     }
-    Spacer(modifier = Modifier.height(16.dp))
-    Text(text = elapsedTime.format(), style = MaterialTheme.typography.displayMedium)
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(
-      onClick = {
-        when (runState) {
-          TimerViewModel.RunState.Paused -> {
-            timeOutCountdownViewModel.cancel()
-            timeOutDialogRequest = null
-            timerViewModel.toggle()
-          }
-          TimerViewModel.RunState.NotStarted,
-          TimerViewModel.RunState.Running -> {
-            val wasRunning = runState == TimerViewModel.RunState.Running
-            timerViewModel.toggle()
-            if (wasRunning) {
-              timeOutDialogRequest = TimeOutDialogRequest(timerViewModel.elapsedTime.value)
-              timeOutCountdownViewModel.start()
+  }
+  LaunchedEffect(foulTimerDetails, cancelFoulTimersRequest) {
+    val requestedPlayer = cancelFoulTimersRequest
+    if (requestedPlayer != null && foulTimerDetails[requestedPlayer] == null) {
+      cancelFoulTimersRequest = null
+    }
+  }
+
+  when (gameSubScreen) {
+    GameSubScreen.CURRENT_FOULS ->
+      CurrentFoulsScreen(
+        teams = teams,
+        remainingTimes = foulTimerRemainingTimes,
+        onPlayerTapped = { cancelFoulTimersRequest = it },
+        onBack = { gameSubScreen = GameSubScreen.MAIN },
+      )
+    GameSubScreen.MAIN ->
+      Column(
+        modifier = Modifier.safeContentPadding().fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          ScoreNumber(
+            label = teams.label(ScoreViewModel.Team.HOME),
+            score = ourScore,
+            onTap = {
+              goalDialogRequest =
+                GoalDialogRequest(ScoreViewModel.Team.HOME, timerViewModel.elapsedTime.value)
+            },
+            onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.HOME) },
+          )
+          Text(text = " - ", style = MaterialTheme.typography.headlineMedium)
+          ScoreNumber(
+            label = teams.label(ScoreViewModel.Team.VISITING),
+            score = opponentScore,
+            onTap = {
+              goalDialogRequest =
+                GoalDialogRequest(ScoreViewModel.Team.VISITING, timerViewModel.elapsedTime.value)
+            },
+            onLongPress = { scoreViewModel.decrementScore(ScoreViewModel.Team.VISITING) },
+          )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = elapsedTime.format(), style = MaterialTheme.typography.displayMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+          onClick = {
+            when (runState) {
+              TimerViewModel.RunState.Paused -> {
+                timeOutCountdownViewModel.cancel()
+                timeOutDialogRequest = null
+                timerViewModel.toggle()
+                foulTimerViewModel.resume()
+              }
+              TimerViewModel.RunState.NotStarted,
+              TimerViewModel.RunState.Running -> {
+                val wasRunning = runState == TimerViewModel.RunState.Running
+                timerViewModel.toggle()
+                if (wasRunning) {
+                  timeOutDialogRequest = TimeOutDialogRequest(timerViewModel.elapsedTime.value)
+                  timeOutCountdownViewModel.start()
+                  foulTimerViewModel.pause()
+                } else {
+                  foulTimerViewModel.resume()
+                }
+              }
             }
           }
-        }
-      }
-    ) {
-      Text(
-        text =
-          when (runState) {
-            TimerViewModel.RunState.NotStarted -> "Start game"
-            TimerViewModel.RunState.Running -> "Stop all clocks"
-            TimerViewModel.RunState.Paused -> "Resume game"
-          }
-      )
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    if (timeOutCountdownIsVisible) {
-      timeOutCountdownRemainingTime?.let { remaining ->
-        TimeOutCountdownDisplay(remainingTime = remaining, isExpired = timeOutCountdownIsExpired)
-        Spacer(modifier = Modifier.height(16.dp))
-      }
-    }
-    Button(onClick = { foulDialogRequest = FoulDialogRequest(timerViewModel.elapsedTime.value) }) {
-      Text("Foul")
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(onClick = { saveDialogRequest = SaveDialogRequest(timerViewModel.elapsedTime.value) }) {
-      Text("Save")
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(
-      onClick = { faceOffDialogRequest = FaceOffDialogRequest(timerViewModel.elapsedTime.value) }
-    ) {
-      Text("Face-off")
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(
-      onClick = {
-        val data =
-          ScoreSheetData.of(
-            homeGoals = scoreViewModel.goals(ScoreViewModel.Team.HOME),
-            visitingGoals = scoreViewModel.goals(ScoreViewModel.Team.VISITING),
-            homeFouls = foulViewModel.fouls(ScoreViewModel.Team.HOME),
-            visitingFouls = foulViewModel.fouls(ScoreViewModel.Team.VISITING),
-            homeTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.HOME),
-            visitingTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.VISITING),
-            homeSaves = saveViewModel.saves(ScoreViewModel.Team.HOME),
-            visitingSaves = saveViewModel.saves(ScoreViewModel.Team.VISITING),
-            homeFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.HOME),
-            visitingFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.VISITING),
-            homeName = teams.home.name,
-            visitingName = teams.visiting.name,
+        ) {
+          Text(
+            text =
+              when (runState) {
+                TimerViewModel.RunState.NotStarted -> "Start game"
+                TimerViewModel.RunState.Running -> "Stop all clocks"
+                TimerViewModel.RunState.Paused -> "Resume game"
+              }
           )
-        pdfSaver.save("laxbench-scoresheet.pdf", data.toPdfBytes())
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        if (timeOutCountdownIsVisible) {
+          timeOutCountdownRemainingTime?.let { remaining ->
+            TimeOutCountdownDisplay(
+              remainingTime = remaining,
+              isExpired = timeOutCountdownIsExpired,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+          }
+        }
+        Button(
+          onClick = { foulDialogRequest = FoulDialogRequest(timerViewModel.elapsedTime.value) }
+        ) {
+          Text("Foul")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        if (foulTimerRemainingTimes.isNotEmpty()) {
+          Button(onClick = { gameSubScreen = GameSubScreen.CURRENT_FOULS }) {
+            Text("Current fouls")
+          }
+          Spacer(modifier = Modifier.height(16.dp))
+        }
+        Button(
+          onClick = { saveDialogRequest = SaveDialogRequest(timerViewModel.elapsedTime.value) }
+        ) {
+          Text("Save")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+          onClick = {
+            faceOffDialogRequest = FaceOffDialogRequest(timerViewModel.elapsedTime.value)
+          }
+        ) {
+          Text("Face-off")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+          onClick = {
+            val data =
+              ScoreSheetData.of(
+                homeGoals = scoreViewModel.goals(ScoreViewModel.Team.HOME),
+                visitingGoals = scoreViewModel.goals(ScoreViewModel.Team.VISITING),
+                homeFouls = foulViewModel.fouls(ScoreViewModel.Team.HOME),
+                visitingFouls = foulViewModel.fouls(ScoreViewModel.Team.VISITING),
+                homeTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.HOME),
+                visitingTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.VISITING),
+                homeSaves = saveViewModel.saves(ScoreViewModel.Team.HOME),
+                visitingSaves = saveViewModel.saves(ScoreViewModel.Team.VISITING),
+                homeFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.HOME),
+                visitingFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.VISITING),
+                homeName = teams.home.name,
+                visitingName = teams.visiting.name,
+              )
+            pdfSaver.save("laxbench-scoresheet.pdf", data.toPdfBytes())
+          }
+        ) {
+          Text("Generate PDF")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+          onClick = {
+            scoreViewModel.printDebugSummary()
+            foulViewModel.printDebugSummary()
+            timeOutViewModel.printDebugSummary()
+            saveViewModel.printDebugSummary()
+            faceOffViewModel.printDebugSummary()
+            foulTimerViewModel.printDebugSummary()
+          }
+        ) {
+          Text("Print debug summary")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onBackToSetup) { Text("Back to setup") }
       }
-    ) {
-      Text("Generate PDF")
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(
-      onClick = {
-        scoreViewModel.printDebugSummary()
-        foulViewModel.printDebugSummary()
-        timeOutViewModel.printDebugSummary()
-        saveViewModel.printDebugSummary()
-        faceOffViewModel.printDebugSummary()
-      }
-    ) {
-      Text("Print debug summary")
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(onClick = onBackToSetup) { Text("Back to setup") }
   }
 
   goalDialogRequest?.let { request ->
@@ -268,6 +335,12 @@ internal fun GameScreen(
         foulViewModel.recordFoul(
           team,
           Foul(player = player, severity = severity, elapsedTime = request.elapsedTime),
+        )
+        foulTimerViewModel.recordFoul(
+          team,
+          player,
+          severity,
+          isGameClockRunning = runState == TimerViewModel.RunState.Running,
         )
       },
       onDismiss = { foulDialogRequest = null },
@@ -309,6 +382,28 @@ internal fun GameScreen(
       },
       onDismiss = { faceOffDialogRequest = null },
     )
+  }
+
+  cancelFoulTimersRequest?.let { player ->
+    foulTimerDetails[player]?.let { playerDetails ->
+      CancelFoulTimersDialog(
+        player = player,
+        teams = teams,
+        details = playerDetails,
+        onCancelOne = { id -> foulTimerViewModel.cancelOne(player, id) },
+        onCancelAll = { foulTimerViewModel.cancelAll(player) },
+        onDismiss = { cancelFoulTimersRequest = null },
+      )
+    }
+  }
+
+  for (popup in releasePopups) {
+    key(popup.id) {
+      FoulReleaseDialog(
+        message = "${teams.label(popup.player)} is released",
+        onDismiss = { releasePopups.remove(popup) },
+      )
+    }
   }
 }
 
