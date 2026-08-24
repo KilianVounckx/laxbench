@@ -269,7 +269,6 @@ internal fun GameScreen(
           team,
           Foul(player = player, severity = severity, elapsedTime = request.elapsedTime),
         )
-        foulDialogRequest = null
       },
       onDismiss = { foulDialogRequest = null },
     )

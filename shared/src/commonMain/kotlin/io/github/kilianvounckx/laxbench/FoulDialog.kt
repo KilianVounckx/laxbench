@@ -55,6 +55,27 @@ private sealed class FoulDialogStep {
     val player: PlayerNumber,
     val type: MajorFoulType,
   ) : FoulDialogStep()
+
+  /**
+   * Reached immediately after a foul has been fully filled in -- the point where, before this
+   * feature, [FoulDialog] would have called onConfirm and closed. Asks whether there is another
+   * simultaneous foul to log for the same incident. Answering "Add another foul" restarts the
+   * wizard from [ChooseTeam] for a new foul while keeping everything already queued; answering
+   * "Done" commits the whole queued batch and closes the dialog. See [FoulDialog]'s class doc for
+   * full details.
+   */
+  data object ConfirmMore : FoulDialogStep()
+
+  /**
+   * Reached when "Cancel" is pressed on [ChooseTeam] (the only step whose secondary button reads
+   * "Cancel" rather than "Back" -- see [previous]) while at least one foul has already been queued
+   * in this invocation's pending batch. Offers an explicit choice between discarding only the
+   * not-yet-completed foul (returning to [ConfirmMore] with the batch left intact) and discarding
+   * the in-progress foul together with the entire batch (closing the dialog with nothing recorded).
+   * Unreachable while the batch is empty: in that case "Cancel" on [ChooseTeam] invokes
+   * [FoulDialog]'s onDismiss directly, exactly as it always has.
+   */
+  data object ConfirmCancelChoice : FoulDialogStep()
 }
 
 /**
@@ -73,28 +94,56 @@ private fun FoulDialogStep.previous(): FoulDialogStep? =
     is FoulDialogStep.ChooseMinorType -> FoulDialogStep.ChooseSeverity(team, player)
     is FoulDialogStep.ChooseMajorType -> FoulDialogStep.ChooseSeverity(team, player)
     is FoulDialogStep.ChooseFoulDuration -> FoulDialogStep.ChooseMajorType(team, player)
+    FoulDialogStep.ConfirmMore -> null
+    FoulDialogStep.ConfirmCancelChoice -> null
   }
 
 /**
- * A multi-step pop-up for recording a foul, analogous to [GoalDialog] but with more steps: which
+ * One foul that has been fully filled in during this [FoulDialog] invocation and is waiting,
+ * in-memory only, to be committed via onConfirm once the scorekeeper finishes by answering "Done"
+ * -- or to be discarded entirely if "Cancel all" is chosen instead. Holds the team alongside the
+ * player/severity (unlike [Foul], which omits the team) because a single invocation's batch can
+ * span both teams.
+ */
+private data class PendingFoul(
+  val team: ScoreViewModel.Team,
+  val player: PlayerNumber,
+  val severity: FoulSeverity,
+)
+
+/**
+ * A multi-step pop-up for recording fouls, analogous to [GoalDialog] but with more steps: which
  * team committed the foul, the offending player's number, and the foul's severity (with a further
  * specific-type step for [FoulSeverity.Minor]/[FoulSeverity.Major], since [FoulSeverity.Expulsion]
  * has no sub-type of its own, and, for [FoulSeverity.Major] only, one more step after that to
  * choose the penalty duration). Shown when the "Foul" button is tapped (see [GameScreen]).
  *
- * [onConfirm] is invoked exactly once, as soon as enough has been chosen to build a complete
- * [FoulSeverity]: immediately for [FoulSeverity.Expulsion]; after its specific type is picked for
- * [FoulSeverity.Minor]; and only once both its specific type and its penalty duration are picked
- * for [FoulSeverity.Major] -- always together with the team and player number collected in the
- * earlier steps. There is no confirmation/summary step afterwards; saving and closing always happen
- * together.
+ * After a foul is fully filled in, the wizard shows a plain "any more fouls?" step
+ * ([FoulDialogStep.ConfirmMore]) instead of immediately committing. "Add another foul" queues the
+ * completed foul into an in-memory pending batch and restarts the wizard at
+ * [FoulDialogStep.ChooseTeam] (for either team, any player/severity). "Done" queues the completed
+ * foul, then commits the whole batch by invoking [onConfirm] once per queued foul (oldest first)
+ * and finally invoking [onDismiss] exactly once to close the dialog.
  *
- * On the first step, the dialog's secondary button reads "Cancel" and invokes [onDismiss],
- * discarding everything collected so far and closing the pop-up. On every later step, that same
- * button instead reads "Back" and returns to the immediately preceding step, keeping whatever was
- * already entered for it (see [FoulDialogStep.previous]). Regardless of step, [onDismiss] is also
- * always invoked if the dialog is dismissed by tapping outside it or via a system back gesture --
- * that always fully closes the pop-up, never just goes back a step.
+ * [onConfirm] is therefore now invoked zero or more times per dialog invocation (never as a side
+ * effect of closing the dialog), always immediately followed by exactly one [onDismiss] call when
+ * the batch is committed.
+ *
+ * Cancelling on the very first step ([FoulDialogStep.ChooseTeam]) while the pending batch is still
+ * empty behaves exactly as before: [onDismiss] is invoked directly, nothing is recorded. Cancelling
+ * on [FoulDialogStep.ChooseTeam] once the pending batch already holds at least one queued foul
+ * instead shows [FoulDialogStep.ConfirmCancelChoice], offering "Cancel only this foul" (discard the
+ * not-yet-completed entry, return to [FoulDialogStep.ConfirmMore], batch untouched) or "Cancel all"
+ * (discard everything, including already-queued fouls, and invoke [onDismiss] with nothing
+ * recorded).
+ *
+ * [onDismiss] is still also invoked, unconditionally and immediately, whenever the dialog is
+ * dismissed by tapping outside it or via a system back gesture, regardless of step or batch
+ * contents -- this always fully closes the dialog and discards the batch, exactly like "Cancel
+ * all".
+ *
+ * There is still no way to review, edit, or remove an individual already-queued foul short of
+ * discarding the whole batch via "Cancel all".
  */
 @Composable
 fun FoulDialog(
@@ -104,7 +153,13 @@ fun FoulDialog(
 ) {
   var step by remember { mutableStateOf<FoulDialogStep>(FoulDialogStep.ChooseTeam) }
   var playerText by remember { mutableStateOf("") }
+  var pendingBatch by remember { mutableStateOf<List<PendingFoul>>(emptyList()) }
   val player = PlayerNumber.parse(playerText)
+
+  fun completeFoul(team: ScoreViewModel.Team, player: PlayerNumber, severity: FoulSeverity) {
+    pendingBatch = pendingBatch + PendingFoul(team, player, severity)
+    step = FoulDialogStep.ConfirmMore
+  }
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -145,7 +200,9 @@ fun FoulDialog(
               Text("Major")
             }
             TextButton(
-              onClick = { onConfirm(currentStep.team, currentStep.player, FoulSeverity.Expulsion) }
+              onClick = {
+                completeFoul(currentStep.team, currentStep.player, FoulSeverity.Expulsion)
+              }
             ) {
               Text("Expulsion")
             }
@@ -155,7 +212,7 @@ fun FoulDialog(
             MinorFoulType.entries.forEach { type ->
               TextButton(
                 onClick = {
-                  onConfirm(currentStep.team, currentStep.player, FoulSeverity.Minor(type))
+                  completeFoul(currentStep.team, currentStep.player, FoulSeverity.Minor(type))
                 }
               ) {
                 Text(type.label)
@@ -180,7 +237,7 @@ fun FoulDialog(
             FoulDuration.entries.forEach { duration ->
               TextButton(
                 onClick = {
-                  onConfirm(
+                  completeFoul(
                     currentStep.team,
                     currentStep.player,
                     FoulSeverity.Major(currentStep.type, duration),
@@ -190,6 +247,32 @@ fun FoulDialog(
                 Text(duration.label)
               }
             }
+          }
+        is FoulDialogStep.ConfirmMore ->
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+              onClick = {
+                playerText = ""
+                step = FoulDialogStep.ChooseTeam
+              }
+            ) {
+              Text("Add another foul")
+            }
+            TextButton(
+              onClick = {
+                pendingBatch.forEach { onConfirm(it.team, it.player, it.severity) }
+                onDismiss()
+              }
+            ) {
+              Text("Done")
+            }
+          }
+        is FoulDialogStep.ConfirmCancelChoice ->
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { step = FoulDialogStep.ConfirmMore }) {
+              Text("Cancel only this foul")
+            }
+            TextButton(onClick = onDismiss) { Text("Cancel all") }
           }
       }
     },
@@ -205,9 +288,23 @@ fun FoulDialog(
       }
     },
     dismissButton = {
-      val previousStep = step.previous()
-      TextButton(onClick = { previousStep?.let { step = it } ?: onDismiss() }) {
-        Text(if (previousStep == null) "Cancel" else "Back")
+      when (step) {
+        is FoulDialogStep.ConfirmMore,
+        is FoulDialogStep.ConfirmCancelChoice -> {}
+        else -> {
+          val previousStep = step.previous()
+          TextButton(
+            onClick = {
+              when {
+                previousStep != null -> step = previousStep
+                pendingBatch.isEmpty() -> onDismiss()
+                else -> step = FoulDialogStep.ConfirmCancelChoice
+              }
+            }
+          ) {
+            Text(if (previousStep == null) "Cancel" else "Back")
+          }
+        }
       }
     },
   )
