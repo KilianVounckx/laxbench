@@ -1,37 +1,34 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM).
+# LaxBench
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+LaxBench is a Kotlin Multiplatform app for lacrosse bench personnel — the scorekeeper/timekeeper
+running the table during a game. It tracks the score, penalty clocks, and game events live, and
+exports a filled-in score sheet as a PDF when the game is done. It targets Android, iOS, Desktop
+(JVM), and Web (Wasm/JS).
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-    - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-      For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-      Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-      folder is the appropriate location.
+The app is written entirely by an agentic coding workflow.
 
-### Running the apps
+## Features
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and
-options:
+- **Team setup** — enter each team's name and color before the game starts.
+- **Live score** — tap either team's score to record a goal, with scorer and optional assist
+  player numbers.
+- **Game clock** — start, stop, and resume a running game timer; the elapsed time is used to
+  timestamp every event recorded during the game.
+- **Fouls and penalty timers** — record a foul against a player as minor, major, or an expulsion.
+  - Minor fouls (e.g. holding, offside, interference) run a 30 second timer.
+  - Major fouls (e.g. cross-check, slashing, unnecessary roughness) carry a selectable penalty
+    duration.
+  - Expulsions run a 5 minute timer.
+  - A "Current fouls" view lists every player currently serving a penalty with their combined
+    remaining time, and lets you release a player early or cancel one of several stacked
+    penalties.
+  - Penalty timers automatically pause when the game clock is stopped and resume when it restarts,
+    and a pop-up notifies the bench when a player is released.
+- **Saves and face-offs** — quick one-tap logging of goalie saves and face-off wins per team.
+- **Time-outs** — recording a time-out (from the "Stop all clocks" action) starts a visible 90
+  second time-out countdown that blinks once expired.
+- **Manage game** — a full editing view to review, add, edit, or delete any recorded goal, foul,
+  face-off, time-out, or save, and to correct a team's name or color after the game has started.
+- **PDF score sheet export** — generates a complete score sheet PDF from the game's goals, fouls,
+  saves, face-offs, and time-outs, ready to save or share.
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- Desktop app:
-    - Hot reload: `./gradlew :desktopApp:hotRun --auto`
-    - Standard run: `./gradlew :desktopApp:run`
-- Web app:
-    - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
-    - JS target (slower, supports older browsers): `./gradlew :webApp:jsBrowserDevelopmentRun`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
-
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
-
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack
-channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
