@@ -68,6 +68,18 @@ data class PlayerFoulTimers(
   fun enqueued(entry: FoulTimerEntry): PlayerFoulTimers = copy(queued = queued + entry)
 
   /**
+   * A copy with the entry identified by [id] (whether [running] or in [queued]) given
+   * [newDuration]; a no-op copy if [id] matches neither. Leaves elapsed/paused bookkeeping
+   * untouched -- changing [running]'s duration changes its remaining time by exactly the difference
+   * between the old and new duration, without resetting how much of it has already elapsed.
+   */
+  fun withDuration(id: Long, newDuration: Duration): PlayerFoulTimers =
+    when {
+      running.id == id -> copy(running = running.copy(duration = newDuration))
+      else -> copy(queued = queued.map { if (it.id == id) it.copy(duration = newDuration) else it })
+    }
+
+  /**
    * Cancels the single entry identified by [id]. If it is the [running] entry, promotes the next
    * [queued] entry (if any) via [promoted] -- deliberately only one level, never cascading further
    * even if the newly-promoted entry also happens to already be expired as of [now], so a

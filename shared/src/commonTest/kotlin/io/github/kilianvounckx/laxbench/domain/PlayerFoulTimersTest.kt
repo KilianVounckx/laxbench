@@ -281,4 +281,40 @@ class PlayerFoulTimersTest {
       cancelled.runningState,
     )
   }
+
+  @Test
+  fun `withDuration changes running duration when id matches running id`() {
+    val timeSource = TestTimeSource()
+    val running = FoulTimerEntry(id = 1L, duration = 30.seconds)
+    var timers = PlayerFoulTimers.started(running, timeSource.markNow(), isGameClockRunning = true)
+    val updated = timers.withDuration(1L, 20.seconds)
+    assertEquals(20.seconds, updated.running.duration)
+    assertEquals(emptyList(), updated.queued)
+  }
+
+  @Test
+  fun `withDuration changes only the matching queued entry duration`() {
+    val timeSource = TestTimeSource()
+    val running = FoulTimerEntry(id = 1L, duration = 30.seconds)
+    val queued1 = FoulTimerEntry(id = 2L, duration = 20.seconds)
+    val queued2 = FoulTimerEntry(id = 3L, duration = 10.seconds)
+    var timers = PlayerFoulTimers.started(running, timeSource.markNow(), isGameClockRunning = true)
+    timers = timers.enqueued(queued1).enqueued(queued2)
+    val updated = timers.withDuration(2L, 25.seconds)
+    assertEquals(running, updated.running)
+    assertEquals(2, updated.queued.size)
+    assertEquals(25.seconds, updated.queued[0].duration)
+    assertEquals(10.seconds, updated.queued[1].duration)
+  }
+
+  @Test
+  fun `withDuration returns unchanged copy when id matches neither`() {
+    val timeSource = TestTimeSource()
+    val running = FoulTimerEntry(id = 1L, duration = 30.seconds)
+    val queued = FoulTimerEntry(id = 2L, duration = 20.seconds)
+    var timers = PlayerFoulTimers.started(running, timeSource.markNow(), isGameClockRunning = true)
+    timers = timers.enqueued(queued)
+    val updated = timers.withDuration(999L, 15.seconds)
+    assertEquals(timers, updated)
+  }
 }

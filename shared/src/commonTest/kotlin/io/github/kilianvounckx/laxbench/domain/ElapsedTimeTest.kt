@@ -67,4 +67,54 @@ class ElapsedTimeTest {
     val elapsedTime = ElapsedTime.of(125.minutes)!!
     assertEquals("125:00.00", elapsedTime.format())
   }
+
+  @Test
+  fun `maskedEdit appends a typed digit onto zero`() {
+    val result = ElapsedTime.zero.maskedEdit("00:00.00", "00:00.001")
+    assertEquals(ElapsedTime.of(10.milliseconds), result)
+  }
+
+  @Test
+  fun `maskedEdit shifts digits in from the right, carrying into seconds and minutes`() {
+    val current = ElapsedTime.of(12340.milliseconds)!!
+    val result = current.maskedEdit("00:12.34", "00:12.345")
+    assertEquals(ElapsedTime.of(123450.milliseconds), result)
+  }
+
+  @Test
+  fun `maskedEdit ignores a non-digit character appended at the end`() {
+    val original = ElapsedTime.zero
+    val result = original.maskedEdit("00:00.00", "00:00.00a")
+    assertEquals(original, result)
+  }
+
+  @Test
+  fun `maskedEdit removes the last digit on backspace`() {
+    val current = ElapsedTime.of(50.milliseconds)!!
+    val result = current.maskedEdit("00:00.05", "00:00.0")
+    assertEquals(ElapsedTime.zero, result)
+  }
+
+  @Test
+  fun `maskedEdit backspacing an already-zero value stays at zero`() {
+    val original = ElapsedTime.zero
+    val result = original.maskedEdit("00:00.00", "00:00.0")
+    assertEquals(original, result)
+  }
+
+  @Test
+  fun `maskedEdit rejects an edit that is not a single trailing append or removal`() {
+    val original = ElapsedTime.zero
+    val result1 = original.maskedEdit("00:00.00", "99:99.99")
+    assertEquals(original, result1)
+    val result2 = original.maskedEdit("00:00.00", "00:00.0012")
+    assertEquals(original, result2)
+  }
+
+  @Test
+  fun `maskedEdit coerces the total at the maximum instead of growing without bound`() {
+    val current = ElapsedTime.of((999_999_999L * 10).milliseconds)!!
+    val result = current.maskedEdit(current.format(), current.format() + "9")
+    assertEquals(current, result)
+  }
 }

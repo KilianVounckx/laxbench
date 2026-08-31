@@ -25,16 +25,15 @@ import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 
 /**
  * The first screen shown on launch, collecting team names and colors for the "home" and "visiting"
- * sides. Takes an optional [prefill] to pre-fill the fields when returning from a game via "Back to
- * setup", and invokes [onStartGame] when "Start game" is pressed with a fresh, fully validated
- * [TeamsInfo].
+ * sides. All fields start empty. Invokes [onStartGame] when "Start game" is pressed with a fresh,
+ * fully validated [TeamsInfo].
  */
 @Composable
-fun SetupScreen(prefill: TeamsInfo?, onStartGame: (TeamsInfo) -> Unit) {
-  var homeNameText by remember { mutableStateOf(prefill?.home?.name?.value ?: "") }
-  var homeColorText by remember { mutableStateOf(prefill?.home?.color?.value ?: "") }
-  var visitingNameText by remember { mutableStateOf(prefill?.visiting?.name?.value ?: "") }
-  var visitingColorText by remember { mutableStateOf(prefill?.visiting?.color?.value ?: "") }
+fun SetupScreen(onStartGame: (TeamsInfo) -> Unit) {
+  var homeNameText by remember { mutableStateOf("") }
+  var homeColorText by remember { mutableStateOf("") }
+  var visitingNameText by remember { mutableStateOf("") }
+  var visitingColorText by remember { mutableStateOf("") }
 
   val homeName = TeamName.parse(homeNameText)
   val homeColor = TeamColor.parse(homeColorText)

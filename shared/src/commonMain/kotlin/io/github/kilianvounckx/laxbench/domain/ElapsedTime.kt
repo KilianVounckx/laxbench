@@ -2,6 +2,7 @@ package io.github.kilianvounckx.laxbench.domain
 
 import kotlin.jvm.JvmInline
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * A non-negative duration elapsed since a timer started running.
@@ -39,4 +40,41 @@ value class ElapsedTime private constructor(val duration: Duration) {
     fun of(duration: Duration): ElapsedTime? =
       if (duration.isNegative()) null else ElapsedTime(duration)
   }
+}
+
+private const val MAX_TOTAL_HUNDREDTHS = 999_999_999L
+
+/**
+ * Applies one masked-input edit to this [ElapsedTime] for the "MM:SS.DD" masked field (see
+ * `ElapsedTimeField`): [oldText] is this value's own [format] output (what the field was showing
+ * right before the edit), and [newText] is the raw text the field's `onValueChange` just received.
+ *
+ * The whole formatted string is treated as a live decimal encoding of the total elapsed
+ * hundredths-of-a-second, right-anchored, so digits always fill in from the right (like a
+ * calculator/currency-style masked input) rather than a fixed left-to-right template — this is what
+ * lets minutes grow unboundedly past two digits while seconds/hundredths, derived from that running
+ * total by `/100 % 60` and `% 100`, can never become invalid, since they are never typed directly:
+ * - if [newText] is exactly [oldText] with one extra character appended at the end, and that
+ *   character is a digit, the digit is shifted in from the right (`total = total * 10 + digit`,
+ *   coerced to [MAX_TOTAL_HUNDREDTHS] so the field cannot grow without bound).
+ * - if [newText] is exactly [oldText] with its last character removed, the total loses its last
+ *   digit (`total /= 10`) — a plain backspace.
+ * - any other shape (appending a non-digit, pasting, editing in the middle of the field, replacing
+ *   a selection, ...) is rejected outright: this [ElapsedTime] is returned unchanged. This mask
+ *   intentionally only supports single-keystroke typing/backspacing at the end, which is what a
+ *   numeric keyboard naturally produces.
+ */
+fun ElapsedTime.maskedEdit(oldText: String, newText: String): ElapsedTime {
+  val oldTotalHundredths = duration.inWholeMilliseconds / 10
+  val newTotalHundredths =
+    when {
+      newText.length == oldText.length + 1 && newText.startsWith(oldText) -> {
+        val appended = newText.last()
+        if (!appended.isDigit()) return this
+        (oldTotalHundredths * 10 + appended.digitToInt()).coerceAtMost(MAX_TOTAL_HUNDREDTHS)
+      }
+      newText.length == oldText.length - 1 && oldText.startsWith(newText) -> oldTotalHundredths / 10
+      else -> return this
+    }
+  return ElapsedTime.of((newTotalHundredths * 10).milliseconds)!!
 }

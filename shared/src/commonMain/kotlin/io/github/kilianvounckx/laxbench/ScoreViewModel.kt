@@ -1,8 +1,10 @@
 package io.github.kilianvounckx.laxbench
 
 import androidx.lifecycle.ViewModel
+import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.Goal
 import io.github.kilianvounckx.laxbench.domain.Goals
+import io.github.kilianvounckx.laxbench.domain.PlayerNumber
 import io.github.kilianvounckx.laxbench.domain.Score
 import io.github.kilianvounckx.laxbench.domain.TeamInfo
 import io.github.kilianvounckx.laxbench.domain.TeamsInfo
@@ -14,21 +16,18 @@ import kotlinx.coroutines.flow.update
 /**
  * Publishes the two independent running goal tallies shown on the score tracker: [ourScore] for our
  * team and [opponentScore] for the opponent. Each tally starts at [Score.zero] when this
- * [ScoreViewModel] is created. Alongside each tally, this class privately keeps that side's full
- * history of recorded [Goal]s (starting at [Goals.empty]), so that a long-press correction knows
- * exactly which goal to remove.
+ * [ScoreViewModel] is created.
  *
- * A score and its goal history always change together and stay in lockstep: [recordGoal] is the
- * only way to increment a score, and it always also appends the same [Goal] to that side's history;
- * [decrementScore] is the only way to decrement a score, and it always also removes that side's
- * most recently recorded goal. Because every increment goes through [recordGoal], a side's score
- * count and the size of its goal history are always equal, so [decrementScore] never has a score
- * left to decrement without a matching goal left to remove, or vice versa: both operations are
- * simply a no-op on the side that is already empty/zero. All of the "never below zero" and
- * "append/remove at the end" bookkeeping is done by [Score] and [Goals], pure domain types; this
- * class only holds the current value of each and republishes the scores immediately on every
- * change, in the same StateFlow-based style [TimerViewModel] uses for [TimerViewModel.elapsedTime]
- * and [TimerViewModel.runState].
+ * A score and its goal history always change together and stay in lockstep through three
+ * operations: [recordGoal] is the only way to increment a score, and it always also appends the
+ * same [Goal] to that side's history with a unique id; [updateGoal] updates a goal's details
+ * without changing the score; [removeGoal] is the only way to decrement a score, and it always also
+ * removes that side's goal with the matching id. Because every increment goes through [recordGoal],
+ * a side's score count and the size of its goal history are always equal. All of the "never below
+ * zero" and "append/remove at the end" bookkeeping is done by [Score] and [Goals], pure domain
+ * types; this class only holds the current value of each and republishes the scores immediately on
+ * every change, in the same StateFlow-based style [TimerViewModel] uses for
+ * [TimerViewModel.elapsedTime] and [TimerViewModel.runState].
  *
  * This class is entirely independent of [TimerViewModel]: it never reads the timer's state itself.
  * The [Goal] passed to [recordGoal] already carries whatever elapsed time the caller captured when
@@ -55,11 +54,19 @@ class ScoreViewModel : ViewModel() {
   private val _ourGoals = MutableStateFlow(Goals.empty)
   private val _opponentGoals = MutableStateFlow(Goals.empty)
 
+  private var nextGoalId = 0L
+
   /**
-   * Records [goal] for [team]: increments that team's score by one and appends [goal] to that
-   * team's goal history.
+   * Records a goal for [team]: increments that team's score by one and appends a new [Goal] with a
+   * unique id to that team's goal history.
    */
-  fun recordGoal(team: Team, goal: Goal) {
+  fun recordGoal(
+    team: Team,
+    scorer: PlayerNumber,
+    assist: PlayerNumber?,
+    elapsedTime: ElapsedTime,
+  ) {
+    val goal = Goal(id = nextGoalId++, scorer = scorer, assist = assist, elapsedTime = elapsedTime)
     when (team) {
       Team.HOME -> {
         _ourScore.update { it.incremented() }
@@ -73,28 +80,44 @@ class ScoreViewModel : ViewModel() {
   }
 
   /**
-   * Corrects a mistaken tap/recording for [team]: decrements that team's score by one (or leaves it
-   * at zero if it is already zero) and removes that team's most recently recorded goal, if one
-   * exists.
+   * Updates the goal identified by [edited.id] for [team], without changing that team's score. This
+   * is a no-op if no goal with that id exists.
    */
-  fun decrementScore(team: Team) {
+  fun updateGoal(team: Team, edited: Goal) {
+    when (team) {
+      Team.HOME -> _ourGoals.update { it.updated(edited) }
+      Team.VISITING -> _opponentGoals.update { it.updated(edited) }
+    }
+  }
+
+  /**
+   * Removes the goal identified by [id] for [team]: decrements that team's score by one and removes
+   * that goal from that team's history. This is a genuine no-op — neither the score nor the goal
+   * history changes — if no goal with that id exists, e.g. a duplicate/late call such as a
+   * double-tap on Manage Game's "Delete" button for the same goal before recomposition removes the
+   * row; this keeps the score count and goal-history size in lockstep exactly as this class's own
+   * invariant requires.
+   */
+  fun removeGoal(team: Team, id: Long) {
     when (team) {
       Team.HOME -> {
+        if (_ourGoals.value.all.none { it.id == id }) return
         _ourScore.update { it.decremented() }
-        _ourGoals.update { it.latestRemoved() }
+        _ourGoals.update { it.removed(id) }
       }
       Team.VISITING -> {
+        if (_opponentGoals.value.all.none { it.id == id }) return
         _opponentScore.update { it.decremented() }
-        _opponentGoals.update { it.latestRemoved() }
+        _opponentGoals.update { it.removed(id) }
       }
     }
   }
 
   /** Returns the goal history for the given [team]. */
-  fun goals(team: Team): Goals =
+  fun goals(team: Team): StateFlow<Goals> =
     when (team) {
-      Team.HOME -> _ourGoals.value
-      Team.VISITING -> _opponentGoals.value
+      Team.HOME -> _ourGoals.asStateFlow()
+      Team.VISITING -> _opponentGoals.asStateFlow()
     }
 
   /** Prints both teams' recorded goal histories, for debugging. */

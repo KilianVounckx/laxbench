@@ -12,7 +12,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 
 private sealed interface Screen {
-  data class Setup(val prefill: TeamsInfo?) : Screen
+  data object Setup : Screen
 
   data class Game(val teams: TeamsInfo, val viewModelStoreOwner: GameViewModelStoreOwner) : Screen
 }
@@ -21,10 +21,8 @@ private sealed interface Screen {
  * Owns the [ViewModelStore] for exactly one game session: every per-game ViewModel (score, fouls,
  * saves, face-offs, time-outs, the timer, and the time-out countdown) is requested from this store
  * while that particular game is active. [App] creates a fresh instance each time "Start game" is
- * pressed and calls `viewModelStore.clear()` on the previous one when a session ends (leaving via
- * "Back to setup", right before starting the next game) — that is what makes every new game start
- * with completely fresh state and stops the previous game's background work (e.g. the timer's
- * ticking coroutine) instead of leaking it.
+ * pressed. The store is never cleared and lives for the rest of the process once a game starts,
+ * consistent with there being no way to end a game and return to setup.
  */
 private class GameViewModelStoreOwner : ViewModelStoreOwner {
   override val viewModelStore: ViewModelStore = ViewModelStore()
@@ -34,23 +32,15 @@ private class GameViewModelStoreOwner : ViewModelStoreOwner {
 @Preview
 fun App() {
   MaterialTheme {
-    var screen by remember { mutableStateOf<Screen>(Screen.Setup(prefill = null)) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Setup) }
 
     when (val current = screen) {
-      is Screen.Setup ->
+      Screen.Setup ->
         SetupScreen(
-          prefill = current.prefill,
-          onStartGame = { teams -> screen = Screen.Game(teams, GameViewModelStoreOwner()) },
+          onStartGame = { teams -> screen = Screen.Game(teams, GameViewModelStoreOwner()) }
         )
       is Screen.Game ->
-        GameScreen(
-          teams = current.teams,
-          viewModelStoreOwner = current.viewModelStoreOwner,
-          onBackToSetup = {
-            current.viewModelStoreOwner.viewModelStore.clear()
-            screen = Screen.Setup(prefill = current.teams)
-          },
-        )
+        GameScreen(initialTeams = current.teams, viewModelStoreOwner = current.viewModelStoreOwner)
     }
   }
 }

@@ -52,12 +52,14 @@ class ScoreSheetDataTest {
   fun `home goal followed by later visiting goal produces correct order with running scores`() {
     val homeGoal =
       Goal(
+        id = 0,
         scorer = PlayerNumber.of(1)!!,
         assist = null,
         elapsedTime = ElapsedTime.of(5000.milliseconds)!!,
       )
     val visitingGoal =
       Goal(
+        id = 1,
         scorer = PlayerNumber.of(2)!!,
         assist = null,
         elapsedTime = ElapsedTime.of(10000.milliseconds)!!,
@@ -92,12 +94,14 @@ class ScoreSheetDataTest {
   fun `two goals at same elapsed time with home first ties to home-first in result`() {
     val homeGoal =
       Goal(
+        id = 0,
         scorer = PlayerNumber.of(1)!!,
         assist = null,
         elapsedTime = ElapsedTime.of(5000.milliseconds)!!,
       )
     val visitingGoal =
       Goal(
+        id = 1,
         scorer = PlayerNumber.of(2)!!,
         assist = null,
         elapsedTime = ElapsedTime.of(5000.milliseconds)!!,
@@ -128,12 +132,14 @@ class ScoreSheetDataTest {
   fun `fouls tie-break to home-first at same elapsed time`() {
     val homeFoul =
       Foul(
+        id = 0,
         player = PlayerNumber.of(1)!!,
         severity = FoulSeverity.Expulsion,
         elapsedTime = ElapsedTime.of(5000.milliseconds)!!,
       )
     val visitingFoul =
       Foul(
+        id = 1,
         player = PlayerNumber.of(2)!!,
         severity = FoulSeverity.Expulsion,
         elapsedTime = ElapsedTime.of(5000.milliseconds)!!,
@@ -162,8 +168,8 @@ class ScoreSheetDataTest {
 
   @Test
   fun `home and visiting time-outs are kept separate per team`() {
-    val homeTimeOut = TimeOut(elapsedTime = ElapsedTime.of(5000.milliseconds)!!)
-    val visitingTimeOut = TimeOut(elapsedTime = ElapsedTime.of(7000.milliseconds)!!)
+    val homeTimeOut = TimeOut(id = 0, elapsedTime = ElapsedTime.of(5000.milliseconds)!!)
+    val visitingTimeOut = TimeOut(id = 1, elapsedTime = ElapsedTime.of(7000.milliseconds)!!)
 
     val data =
       ScoreSheetData.of(
@@ -189,13 +195,13 @@ class ScoreSheetDataTest {
 
   @Test
   fun `saves and face-offs are rendered as counts`() {
-    val homeSave1 = Save(elapsedTime = ElapsedTime.of(5000.milliseconds)!!)
-    val homeSave2 = Save(elapsedTime = ElapsedTime.of(6000.milliseconds)!!)
-    val visitingSave = Save(elapsedTime = ElapsedTime.of(7000.milliseconds)!!)
-    val homeFaceOff1 = FaceOff(elapsedTime = ElapsedTime.of(1000.milliseconds)!!)
-    val homeFaceOff2 = FaceOff(elapsedTime = ElapsedTime.of(2000.milliseconds)!!)
-    val homeFaceOff3 = FaceOff(elapsedTime = ElapsedTime.of(3000.milliseconds)!!)
-    val visitingFaceOff = FaceOff(elapsedTime = ElapsedTime.of(4000.milliseconds)!!)
+    val homeSave1 = Save(id = 0, elapsedTime = ElapsedTime.of(5000.milliseconds)!!)
+    val homeSave2 = Save(id = 1, elapsedTime = ElapsedTime.of(6000.milliseconds)!!)
+    val visitingSave = Save(id = 2, elapsedTime = ElapsedTime.of(7000.milliseconds)!!)
+    val homeFaceOff1 = FaceOff(id = 0, elapsedTime = ElapsedTime.of(1000.milliseconds)!!)
+    val homeFaceOff2 = FaceOff(id = 1, elapsedTime = ElapsedTime.of(2000.milliseconds)!!)
+    val homeFaceOff3 = FaceOff(id = 2, elapsedTime = ElapsedTime.of(3000.milliseconds)!!)
+    val visitingFaceOff = FaceOff(id = 3, elapsedTime = ElapsedTime.of(4000.milliseconds)!!)
 
     val data =
       ScoreSheetData.of(

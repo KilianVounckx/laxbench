@@ -7,8 +7,8 @@ import kotlin.time.Duration
  * another foul for the same player (see [PlayerFoulTimers]) -- required so a future feature can
  * still see each foul's individual timer, even though the UI only ever shows one combined total.
  * [id] uniquely identifies this entry within its player's queue (e.g. to cancel one specific queued
- * foul without touching the others); assigning unique, ever-increasing ids is the responsibility of
- * whoever creates entries (see `FoulTimerViewModel`) -- this type does not enforce uniqueness
- * itself, the same way [PlayerNumber] does not enforce that no two players share a number.
+ * foul without touching the others); it is always the same id as the [Foul] this timer entry
+ * corresponds to, supplied by the caller rather than assigned by this type -- the same way
+ * [PlayerNumber] does not enforce that no two players share a number.
  */
 data class FoulTimerEntry(val id: Long, val duration: Duration)

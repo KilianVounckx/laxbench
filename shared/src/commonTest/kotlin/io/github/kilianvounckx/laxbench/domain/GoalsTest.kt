@@ -7,9 +7,10 @@ import kotlin.test.assertTrue
 class GoalsTest {
 
   private val firstGoal =
-    Goal(scorer = PlayerNumber.of(7)!!, assist = null, elapsedTime = ElapsedTime.zero)
+    Goal(id = 0, scorer = PlayerNumber.of(7)!!, assist = null, elapsedTime = ElapsedTime.zero)
   private val secondGoal =
     Goal(
+      id = 1,
       scorer = PlayerNumber.of(11)!!,
       assist = PlayerNumber.of(4),
       elapsedTime = ElapsedTime.zero,
@@ -32,20 +33,40 @@ class GoalsTest {
   }
 
   @Test
-  fun `latestRemoved on an empty history stays empty`() {
-    assertTrue(Goals.empty.latestRemoved().all.isEmpty())
+  fun `record and remove cycles compose correctly`() {
+    val goals =
+      Goals.empty
+        .recorded(firstGoal)
+        .recorded(secondGoal)
+        .removed(secondGoal.id)
+        .recorded(secondGoal)
+    assertEquals(listOf(firstGoal, secondGoal), goals.all)
   }
 
   @Test
-  fun `latestRemoved removes only the most recently recorded goal`() {
-    val goals = Goals.empty.recorded(firstGoal).recorded(secondGoal).latestRemoved()
+  fun `removed with matching id removes the goal`() {
+    val goals = Goals.empty.recorded(firstGoal).recorded(secondGoal).removed(1)
     assertEquals(listOf(firstGoal), goals.all)
   }
 
   @Test
-  fun `record and remove cycles compose correctly`() {
-    val goals =
-      Goals.empty.recorded(firstGoal).recorded(secondGoal).latestRemoved().recorded(secondGoal)
+  fun `removed with non-matching id leaves goals unchanged`() {
+    val goals = Goals.empty.recorded(firstGoal).recorded(secondGoal).removed(999)
+    assertEquals(listOf(firstGoal, secondGoal), goals.all)
+  }
+
+  @Test
+  fun `updated with matching id replaces the goal`() {
+    val updatedGoal = firstGoal.copy(scorer = PlayerNumber.of(42)!!)
+    val goals = Goals.empty.recorded(firstGoal).recorded(secondGoal).updated(updatedGoal)
+    assertEquals(listOf(updatedGoal, secondGoal), goals.all)
+  }
+
+  @Test
+  fun `updated with non-matching id leaves goals unchanged`() {
+    val nonExistentGoal =
+      Goal(id = 999, scorer = PlayerNumber.of(42)!!, assist = null, elapsedTime = ElapsedTime.zero)
+    val goals = Goals.empty.recorded(firstGoal).recorded(secondGoal).updated(nonExistentGoal)
     assertEquals(listOf(firstGoal, secondGoal), goals.all)
   }
 }

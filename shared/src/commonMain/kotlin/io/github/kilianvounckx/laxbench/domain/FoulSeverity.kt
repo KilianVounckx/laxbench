@@ -35,4 +35,17 @@ sealed class FoulSeverity {
         is Major -> duration.length
         Expulsion -> 5.minutes
       }
+
+  /** The display label for this foul's type. */
+  val typeLabel: String
+    get() =
+      when (this) {
+        is Minor -> type.label
+        is Major -> type.label
+        Expulsion -> "Expulsion"
+      }
+
+  /** The display label for this foul's duration, or `null` if this foul has no duration. */
+  val durationLabel: String?
+    get() = (this as? Major)?.duration?.label
 }

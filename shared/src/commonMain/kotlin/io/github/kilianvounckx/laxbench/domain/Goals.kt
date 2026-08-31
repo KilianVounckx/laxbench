@@ -7,12 +7,11 @@ import kotlin.jvm.JvmInline
  * the opponent's), oldest first.
  *
  * Constructed only through [empty], so every existing instance starts from an empty list.
- * [recorded] is the only way to add a goal, always appending it as the newest/last entry;
- * [latestRemoved] is the only way to remove one, and it always removes the most recently recorded
- * (last) entry -- it mirrors [Score.decremented] in leaving this same value unchanged, rather than
- * failing, when there is nothing left to remove. The same type is used for both sides of the score
- * tracker so this "append at the end, remove from the end" bookkeeping is defined exactly once and
- * reused, rather than duplicated per side.
+ * [recorded] is the only way to add a goal, always appending it as the newest/last entry. [removed]
+ * removes a goal by id, with no-op semantics if the id is not present. [updated] edits a goal by
+ * id, with no-op semantics if the id is not present. The same type is used for both sides of the
+ * score tracker so this bookkeeping is defined exactly once and reused, rather than duplicated per
+ * side.
  */
 @JvmInline
 value class Goals private constructor(val all: List<Goal>) {
@@ -21,10 +20,16 @@ value class Goals private constructor(val all: List<Goal>) {
   fun recorded(goal: Goal): Goals = Goals(all + goal)
 
   /**
-   * Returns a [Goals] with the most recently recorded entry removed, or this same [Goals] unchanged
-   * if [all] is already empty.
+   * Returns a [Goals] with the entry identified by [id] removed, or this same [Goals] unchanged if
+   * [id] is not present.
    */
-  fun latestRemoved(): Goals = if (all.isEmpty()) this else Goals(all.dropLast(1))
+  fun removed(id: Long): Goals = Goals(all.filterNot { it.id == id })
+
+  /**
+   * Returns a [Goals] with the entry identified by [edited.id] replaced, or this same [Goals]
+   * unchanged if [edited.id] is not present.
+   */
+  fun updated(edited: Goal): Goals = Goals(all.map { if (it.id == edited.id) edited else it })
 
   companion object {
     /** A [Goals] with no recorded goals. */

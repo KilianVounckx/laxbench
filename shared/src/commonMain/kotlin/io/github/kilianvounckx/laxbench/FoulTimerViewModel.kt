@@ -48,6 +48,21 @@ enum class FoulTimerEntryKind {
 }
 
 /**
+ * The outcome of cancelling one specific foul-timer entry by id via
+ * [FoulTimerViewModel.cancelById]: [NOT_FOUND] if no entry with that id exists in any player's
+ * queue (e.g. it was already cancelled or had already naturally expired); [STILL_HAS_TIMERS] if the
+ * entry was found and cancelled, but that player still has at least one other running or queued
+ * foul-timer entry left afterward, so this cancellation alone did not release them; [RELEASED] if
+ * cancelling this entry emptied that player's entire queue -- this cancellation is what fully
+ * released them.
+ */
+enum class FoulTimerCancelOutcome {
+  NOT_FOUND,
+  STILL_HAS_TIMERS,
+  RELEASED,
+}
+
+/**
  * One foul-timer entry's live display info for the cancel pop-up (see [CancelFoulTimersDialog]):
  * [id] to cancel it, [remainingTime] as its live remaining time if [kind] is
  * [FoulTimerEntryKind.RUNNING], or its full untouched duration if [kind] is
@@ -69,10 +84,18 @@ data class FoulTimerDetail(
  * never on cancellation -- see `FoulReleaseDialog`).
  *
  * [recordFoul] is called once per individual foul actually recorded (including once per foul in a
- * simultaneous-foul batch, in logging order -- see [FoulDialog]/[GameScreen]), starting a brand new
+ * simultaneous-foul batch, in logging order -- see [FoulDialog]/[GameScreen]), taking the foul's
+ * [id] supplied externally (matching the [Foul.id] from [FoulViewModel]), starting a brand new
  * queue for that player if they have none yet, or appending to the end of their existing queue
  * otherwise -- [PlayerFoulTimers] handles which of those two happens and enforces the FIFO
  * ordering.
+ *
+ * [adjustDuration] changes a running-or-queued timer's duration by id, re-running the natural
+ * expiry cascade if the adjustment brings any timer's remaining time to zero or below, firing
+ * [releaseEvents] exactly as if the natural expiry had occurred. [cancelById] cancels a specific
+ * timer by id without firing [releaseEvents] -- the caller is responsible for any UI feedback for
+ * manual cancellation (see [GameScreen]), and returns a [FoulTimerCancelOutcome] to distinguish
+ * whether the entry was found, whether the player was fully released, or whether timers remain.
  *
  * [pause]/[resume] pause/resume every player's running entry at once, called from [GameScreen] at
  * exactly the same "Stop all clocks"/"Resume game" transitions that already pause/resume the game
@@ -91,8 +114,6 @@ data class FoulTimerDetail(
  * instance always starts with no timers.
  */
 class FoulTimerViewModel : ViewModel() {
-
-  private var nextId = 0L
 
   private val _queues = MutableStateFlow<Map<FoulTimerPlayer, PlayerFoulTimers>>(emptyMap())
 
@@ -116,18 +137,21 @@ class FoulTimerViewModel : ViewModel() {
 
   /**
    * Starts (or appends to) [team]/[player]'s foul-timer queue for a newly recorded foul of
-   * [severity]. [isGameClockRunning] must reflect the game clock's run state at the moment the foul
-   * was recorded, only used if this is that player's first outstanding timer.
+   * [severity]. [id] must be the same as the [Foul.id] returned by [FoulViewModel.recordFoul] for
+   * the same foul, used to later identify this timer entry for adjustment or cancellation by Manage
+   * Game. [isGameClockRunning] must reflect the game clock's run state at the moment the foul was
+   * recorded, only used if this is that player's first outstanding timer.
    */
   fun recordFoul(
     team: ScoreViewModel.Team,
     player: PlayerNumber,
     severity: FoulSeverity,
+    id: Long,
     isGameClockRunning: Boolean,
   ) {
     val now = TimeSource.Monotonic.markNow()
     val key = FoulTimerPlayer(team, player)
-    val entry = FoulTimerEntry(id = nextId++, duration = severity.timerDuration)
+    val entry = FoulTimerEntry(id = id, duration = severity.timerDuration)
     _queues.value =
       _queues.value.toMutableMap().apply {
         val existing = this[key]
@@ -170,6 +194,99 @@ class FoulTimerViewModel : ViewModel() {
     _queues.value = _queues.value - key
     refresh(TimeSource.Monotonic.markNow())
   }
+
+  /**
+   * Adjusts the remaining duration of the timer entry identified by [id] to [newDuration]. If a
+   * queue's running or queued timer has its duration changed, the natural expiry cascade is re-run:
+   * if the adjustment brings the remaining time to zero or below, it is treated like a natural
+   * expiry and fires [releaseEvents], otherwise it simply continues its countdown with the new
+   * remaining time. Returns `true` if an entry with [id] was found and adjusted, `false` otherwise.
+   */
+  fun adjustDuration(id: Long, newDuration: kotlin.time.Duration): Boolean {
+    val key = keyFor(id) ?: return false
+    val existing = _queues.value[key] ?: return false
+    _queues.value = _queues.value + (key to existing.withDuration(id, newDuration))
+    refresh(TimeSource.Monotonic.markNow())
+    return true
+  }
+
+  /**
+   * Cancels the specific timer entry identified by [id], without firing [releaseEvents] -- the
+   * caller must handle any UI feedback for manual cancellation. Returns
+   * [FoulTimerCancelOutcome.NOT_FOUND] if no entry with [id] exists,
+   * [FoulTimerCancelOutcome.RELEASED] if cancelling it emptied that player's whole queue, or
+   * [FoulTimerCancelOutcome.STILL_HAS_TIMERS] if the player still has at least one other running or
+   * queued entry left. [movePlayer] handles the separate case of a foul's player number itself
+   * being corrected, moving its timer entry to the corrected player's queue while preserving its
+   * live remaining time.
+   */
+  fun cancelById(id: Long): FoulTimerCancelOutcome {
+    val key = keyFor(id) ?: return FoulTimerCancelOutcome.NOT_FOUND
+    val existing = _queues.value[key] ?: return FoulTimerCancelOutcome.NOT_FOUND
+    val now = TimeSource.Monotonic.markNow()
+    val updated = existing.cancelled(id, now)
+    _queues.value = if (updated == null) _queues.value - key else _queues.value + (key to updated)
+    refresh(now)
+    return if (updated == null) FoulTimerCancelOutcome.RELEASED
+    else FoulTimerCancelOutcome.STILL_HAS_TIMERS
+  }
+
+  /**
+   * Moves the foul-timer entry identified by [id] from whichever [FoulTimerPlayer] it currently
+   * belongs to onto [team]/[newPlayer] instead -- called when Manage Game corrects a foul's player
+   * number after the fact (see [GameScreen.updateFoul]). A no-op if no entry with [id] exists
+   * anywhere, or if it is already filed under [team]/[newPlayer].
+   *
+   * Otherwise, the entry's current *remaining* time is carried over -- its live countdown if it was
+   * the [FoulTimerEntryKind.RUNNING] entry, or its untouched full duration if it was
+   * [FoulTimerEntryKind.QUEUED] -- never its original, possibly already-partially-elapsed duration,
+   * since that time has genuinely already passed under the correct player too. The entry is then
+   * re-inserted at [team]/[newPlayer] exactly as a freshly recorded foul would be via [recordFoul]:
+   * immediately running if that player has no other outstanding timers, or enqueued behind their
+   * existing ones otherwise. [isGameClockRunning] is used the same way [recordFoul] uses it, only
+   * if [team]/[newPlayer] has no existing queue yet.
+   *
+   * The player the entry is moved away from keeps whatever remains of their own queue afterward
+   * (possibly now fully released), mirroring [PlayerFoulTimers.cancelled]. Like [cancelById], this
+   * never itself fires [releaseEvents] for either player -- the caller decides whether any UI
+   * feedback is warranted; [GameScreen] currently shows none for this case, treating it as a plain
+   * correction rather than a release.
+   */
+  fun movePlayer(
+    team: ScoreViewModel.Team,
+    id: Long,
+    newPlayer: PlayerNumber,
+    isGameClockRunning: Boolean,
+  ) {
+    val oldKey = keyFor(id) ?: return
+    val newKey = FoulTimerPlayer(team, newPlayer)
+    if (oldKey == newKey) return
+    val now = TimeSource.Monotonic.markNow()
+    val oldTimers = _queues.value.getValue(oldKey)
+    val remainingDuration =
+      if (oldTimers.running.id == id) oldTimers.runningRemainingTime(now).duration
+      else oldTimers.queued.first { it.id == id }.duration
+    val afterRemoval = oldTimers.cancelled(id, now)
+    val movedEntry = FoulTimerEntry(id = id, duration = remainingDuration)
+    _queues.value =
+      _queues.value.toMutableMap().apply {
+        if (afterRemoval == null) remove(oldKey) else this[oldKey] = afterRemoval
+        val existingNewTimers = this[newKey]
+        this[newKey] =
+          existingNewTimers?.enqueued(movedEntry)
+            ?: PlayerFoulTimers.started(movedEntry, now, isGameClockRunning)
+      }
+    refresh(now)
+  }
+
+  /**
+   * Finds which player's queue contains a foul-timer entry identified by [id], or `null` if no such
+   * entry exists.
+   */
+  private fun keyFor(id: Long): FoulTimerPlayer? =
+    _queues.value.entries
+      .firstOrNull { (_, timers) -> timers.running.id == id || timers.queued.any { it.id == id } }
+      ?.key
 
   /**
    * Prints every player's current foul-timer queues, for debugging (see [GameScreen]'s debug

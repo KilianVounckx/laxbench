@@ -1,7 +1,5 @@
 package io.github.kilianvounckx.laxbench
 
-import io.github.kilianvounckx.laxbench.domain.FoulSeverity
-
 private const val PAGE_WIDTH = 595
 private const val PAGE_HEIGHT = 842
 private const val MARGIN = 40
@@ -97,8 +95,8 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
           40 to f.elapsedTime.format(),
           105 to nameOf(f.team),
           165 to f.player.number.toString(),
-          215 to f.severity.typeLabel(),
-          425 to (f.severity.durationLabel() ?: ""),
+          215 to f.severity.typeLabel,
+          425 to (f.severity.durationLabel ?: ""),
         )
       },
   )
@@ -122,12 +120,3 @@ fun ScoreSheetData.toPdfBytes(): ByteArray {
 
   return document.build()
 }
-
-private fun FoulSeverity.typeLabel(): String =
-  when (this) {
-    is FoulSeverity.Minor -> type.label
-    is FoulSeverity.Major -> type.label
-    FoulSeverity.Expulsion -> "Expulsion"
-  }
-
-private fun FoulSeverity.durationLabel(): String? = (this as? FoulSeverity.Major)?.duration?.label

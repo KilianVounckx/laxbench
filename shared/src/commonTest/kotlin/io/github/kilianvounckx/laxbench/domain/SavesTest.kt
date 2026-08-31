@@ -7,9 +7,9 @@ import kotlin.time.Duration.Companion.seconds
 
 class SavesTest {
 
-  private val firstSave = Save(elapsedTime = ElapsedTime.zero)
-  private val secondSave = Save(elapsedTime = ElapsedTime.of(30.seconds)!!)
-  private val thirdSave = Save(elapsedTime = ElapsedTime.of(90.seconds)!!)
+  private val firstSave = Save(id = 0, elapsedTime = ElapsedTime.zero)
+  private val secondSave = Save(id = 1, elapsedTime = ElapsedTime.of(30.seconds)!!)
+  private val thirdSave = Save(id = 2, elapsedTime = ElapsedTime.of(90.seconds)!!)
 
   @Test
   fun `empty has no saves`() {
@@ -24,6 +24,19 @@ class SavesTest {
   @Test
   fun `recorded appends a save after previously recorded saves`() {
     val saves = Saves.empty.recorded(firstSave).recorded(secondSave).recorded(thirdSave)
+    assertEquals(listOf(firstSave, secondSave, thirdSave), saves.all)
+  }
+
+  @Test
+  fun `removed with matching id removes the save`() {
+    val saves = Saves.empty.recorded(firstSave).recorded(secondSave).recorded(thirdSave).removed(1)
+    assertEquals(listOf(firstSave, thirdSave), saves.all)
+  }
+
+  @Test
+  fun `removed with non-matching id leaves saves unchanged`() {
+    val saves =
+      Saves.empty.recorded(firstSave).recorded(secondSave).recorded(thirdSave).removed(999)
     assertEquals(listOf(firstSave, secondSave, thirdSave), saves.all)
   }
 }
