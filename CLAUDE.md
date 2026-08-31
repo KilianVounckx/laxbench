@@ -109,6 +109,14 @@ Enforced by a custom `checkDependencyVersionCatalogUsage` task (root `build.grad
 if any `build.gradle.kts` contains a hardcoded `group:artifact:version` coordinate or a
 `id(...) version "..."` plugin declaration.
 
+## Git workflow
+
+Never run git commands that change repository state — `commit`, `push`, `reset`, `stash`,
+`checkout`/`restore` that discards changes, staging/unstaging, etc. The user does all committing
+and pushing themselves. Read-only git commands (`status`, `diff`, `log`, `show`) are fine and
+expected. If a task would normally require committing or stashing to proceed (e.g. needing a clean
+working tree), stop and ask the user to do it themselves, then continue once they confirm.
+
 ## Running everything
 
 `./gradlew check` runs ktfmtCheck, the version-catalog check, and (per module) compilation with
