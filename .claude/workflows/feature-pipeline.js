@@ -36,7 +36,6 @@ const COLLECT_SCHEMA = {
   properties: {
     diff: { type: 'string' },
     checkOutput: { type: 'string' },
-    koverOutput: { type: 'string' },
   },
   required: ['diff', 'checkOutput'],
 }
@@ -102,7 +101,7 @@ while (cycle < MAX_CYCLES && !approved) {
 
   phase('Review')
   const reviewResult = await agent(
-    `Here is the diff produced by an implementation attempt, and the project's build/check status — both collected independently from the actual repo state, not self-reported by the implementer. Review them.\n\nDiff:\n${collectResult.diff}\n\n./gradlew check output:\n${collectResult.checkOutput}\n\n./gradlew :shared:koverVerify output (empty if not applicable — the diff didn't touch the domain layer):\n${collectResult.koverOutput || '(not run — no domain files touched)'}\n\nFeature story, for context only (you have no plan to check against — review the diff on its own merits and against the existing codebase):\n\n${story}`,
+    `Here is the diff produced by an implementation attempt, and the project's build/check status — both collected independently from the actual repo state, not self-reported by the implementer. Review them.\n\nDiff:\n${collectResult.diff}\n\n./gradlew check output:\n${collectResult.checkOutput}\n\nFeature story, for context only (you have no plan to check against — review the diff on its own merits and against the existing codebase):\n\n${story}`,
     {
       agentType: 'feature-reviewer',
       schema: REVIEW_SCHEMA,

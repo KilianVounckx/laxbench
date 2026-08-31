@@ -2,8 +2,9 @@
 
 LaxBench is a Kotlin Multiplatform app for lacrosse bench personnel — the scorekeeper/timekeeper
 running the table during a game. It tracks the score, penalty clocks, and game events live, and
-exports a filled-in score sheet as a PDF when the game is done. It targets Android, iOS, Desktop
-(JVM), and Web (Wasm/JS).
+exports a filled-in score sheet as a PDF when the game is done. It currently targets Web (Wasm)
+only; Android, iOS, and Desktop (JVM) support was removed to unblock CI and will likely return
+later.
 
 The app is written entirely by an agentic coding workflow.
 

@@ -15,12 +15,10 @@ Do exactly this, in order:
    git status --porcelain=v1 --untracked-files=all | awk '$1 == "??" {print substr($0, 4)}' | while IFS= read -r f; do git diff --no-index -- /dev/null "$f"; done
    ```
    `git diff --no-index` exits with status 1 when it finds a difference (which it always will here) — that is expected, not an error; do not treat a non-zero exit code from this command as a failure. Append this command's full output after the output of step 2, in the order the files were listed, to form one combined diff covering both modified/deleted tracked files and newly added untracked files.
-4. If the combined diff touches any file whose path contains `domain` (e.g. under `shared/src/*/kotlin/.../domain/`), also run `./gradlew :shared:koverVerify`.
-5. Run `./gradlew check`.
+4. Run `./gradlew check`.
 
 Report your result via the required structured output:
 - `diff`: the full combined diff from steps 2-3, verbatim — tracked changes followed by the untracked-file pseudo-diffs.
 - `checkOutput`: the full raw output of `./gradlew check`, or if it's very long, a faithful excerpt that preserves the pass/fail result and the complete text of any failure.
-- `koverOutput`: the full raw output of `./gradlew :shared:koverVerify` if you ran it in step 4, or an empty string if you didn't.
 
 Never edit, stage, or commit any file — you only run the commands listed above, nothing else (`git diff --no-index` reads the working tree and the index without modifying either, so it doesn't violate this). Never interpret, judge, or summarize what any of this means for the feature; that's the review stage's job, not yours.

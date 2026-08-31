@@ -1,13 +1,17 @@
 # Coding conventions
 
-This is a Kotlin Multiplatform project (`shared`, `androidApp`, `desktopApp`, `webApp`). These
-conventions apply to all code in it.
+This is a Kotlin Multiplatform project (`shared`, `webApp`). Web (Wasm) is currently the only
+target being built — Android, iOS, and Desktop (JVM) were removed to unblock CI and will likely
+return later. This does not relax convention 1 below: the "put it in `commonMain`" rule exists to
+keep the codebase ready to grow more targets cheaply, not because there happen to be several right
+now, so it applies exactly as strictly with one target as it will once more come back.
 
 ## 1. Maximize common code
 
 This is the highest-priority structural convention in this codebase: as much code as possible must
-live in `shared/src/commonMain`, not in a platform source set (`androidMain`, `iosMain`, `jvmMain`,
-`jsMain`, `wasmJsMain`) or a platform app module (`androidApp`, `desktopApp`, `webApp`). Default to
+live in `shared/src/commonMain`, not in a platform source set (currently just `wasmJsMain`; also
+`androidMain`, `iosMain`, `jvmMain`, `jsMain` when those targets return) or a platform app module
+(currently just `webApp`; also `androidApp`, `desktopApp` when those targets return). Default to
 writing new logic in `commonMain`. Only put something in a platform source set if it genuinely
 cannot be expressed platform-independently — an actual platform API call behind an `expect`/`actual`
 boundary — never because it was merely convenient to duplicate per platform. When an `expect`/`actual`
@@ -75,12 +79,14 @@ Every non-private function in the domain layer (`io.github.kilianvounckx.laxbenc
 have tests. Other code may be tested if it gets complicated enough to warrant it, but isn't
 required to.
 
-Enforced approximately via a Kover coverage-verification rule scoped to that package
-(`shared/build.gradle.kts`, requiring 100% line coverage under `*.domain.*`). This is a proxy, not
-a guarantee of "one test per function" — untested branches of a covered function can still slip
-through, so review still matters here too.
+Previously enforced approximately via a Kover coverage-verification rule scoped to that package,
+requiring 100% line coverage under `*.domain.*`. Kover only measures JVM-based targets, and the
+`jvm()` target was removed along with Android/iOS/Desktop (see the top of this file), so that
+mechanical check is currently disabled — `shared/build.gradle.kts` has no `kover` plugin or
+`koverVerify` task. This convention is enforced by review only until a JVM-based (or
+Kover-for-Wasm-capable) target comes back.
 
-Run: `./gradlew :shared:koverVerify`
+Run: `./gradlew :shared:wasmJsTest` to run the domain tests without coverage measurement.
 
 ## 6. Formatting
 
@@ -120,7 +126,9 @@ working tree), stop and ask the user to do it themselves, then continue once the
 ## Running everything
 
 `./gradlew check` runs ktfmtCheck, the version-catalog check, and (per module) compilation with
-warnings as errors, across every subproject. `./gradlew :shared:koverVerify` additionally checks
-domain test coverage. Note: in a sandbox without an Android SDK configured, tasks that touch the
-`androidApp`/Android target of `shared` will fail to configure regardless of these conventions —
-that's an environment gap, not a convention violation.
+warnings as errors, across every subproject. Domain test coverage is not currently checked
+mechanically (see convention 5) — run `./gradlew :shared:wasmJsTest` to run the tests themselves.
+Note: `:shared:wasmJsBrowserTest` (part of `check`) needs a headless browser (Chrome/Firefox); in a
+sandbox without one installed, it will fail even though everything else (compilation, ktfmt,
+version-catalog check) passes — that's an environment gap, not a convention violation. GitHub
+Actions' `ubuntu-latest` runner images ship browsers pre-installed, so this isn't an issue in CI.
