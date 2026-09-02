@@ -19,10 +19,10 @@ private sealed interface Screen {
 
 /**
  * Owns the [ViewModelStore] for exactly one game session: every per-game ViewModel (score, fouls,
- * saves, face-offs, time-outs, the timer, and the time-out countdown) is requested from this store
- * while that particular game is active. [App] creates a fresh instance each time "Start game" is
- * pressed. The store is never cleared and lives for the rest of the process once a game starts,
- * consistent with there being no way to end a game and return to setup.
+ * saves, face-offs, time-outs, the timer, the time-out countdown, and the intermission countdown)
+ * is requested from this store while that particular game is active. [App] creates a fresh instance
+ * each time "Start game" is pressed. The store is never cleared and lives for the rest of the
+ * process once a game starts, consistent with there being no way to end a game and return to setup.
  */
 private class GameViewModelStoreOwner : ViewModelStoreOwner {
   override val viewModelStore: ViewModelStore = ViewModelStore()

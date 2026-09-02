@@ -2,10 +2,12 @@ package io.github.kilianvounckx.laxbench
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.kilianvounckx.laxbench.domain.CountdownState
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
-import io.github.kilianvounckx.laxbench.domain.TimeOutCountdownState
 import kotlin.time.ComparableTimeMark
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,18 +30,18 @@ import kotlinx.coroutines.launch
  * most one time-out countdown is ever live at a time, since the UI only allows starting a new one
  * (by pausing the clock again) after the previous one has already been resolved via [cancel].
  *
- * [TimeOutCountdownState] (a pure domain type, like
+ * [io.github.kilianvounckx.laxbench.domain.CountdownState] (a pure domain type, like
  * [io.github.kilianvounckx.laxbench.domain.TimerState]) holds the timing data; this class only
  * holds the current (nullable) state and re-derives [remainingTime]/[isExpired] every
  * [TICK_INTERVAL], as well as immediately on every [start]/[cancel] call so the displayed value
  * updates instantly rather than waiting for the next tick -- mirroring [TimerViewModel.toggle]'s
- * immediate re-derivation. [isVisible] is not part of [TimeOutCountdownState] at all: it is a pure
+ * immediate re-derivation. [isVisible] is not part of [CountdownState] at all: it is a pure
  * UI-visibility concern, controlled only by [show] and [cancel], independent of whether the
  * countdown is silently running, visibly counting down, or expired and blinking.
  */
 class TimeOutCountdownViewModel : ViewModel() {
 
-  private val _state = MutableStateFlow<TimeOutCountdownState?>(null)
+  private val _state = MutableStateFlow<CountdownState?>(null)
 
   private val _remainingTime = MutableStateFlow<ElapsedTime?>(null)
   val remainingTime: StateFlow<ElapsedTime?> = _remainingTime.asStateFlow()
@@ -62,7 +64,7 @@ class TimeOutCountdownViewModel : ViewModel() {
   /** Starts a fresh countdown, silently (not [isVisible]). See class doc. */
   fun start() {
     val now = TimeSource.Monotonic.markNow()
-    _state.value = TimeOutCountdownState.started(now)
+    _state.value = CountdownState.started(DURATION, now)
     _isVisible.value = false
     refresh(now)
   }
@@ -86,10 +88,11 @@ class TimeOutCountdownViewModel : ViewModel() {
     _state.update { it?.updated(now) }
     val current = _state.value
     _remainingTime.value = current?.remainingTime(now)
-    _isExpired.value = current is TimeOutCountdownState.Expired
+    _isExpired.value = current is CountdownState.Expired
   }
 
   private companion object {
     val TICK_INTERVAL = 10.milliseconds
+    val DURATION: Duration = 90.seconds
   }
 }

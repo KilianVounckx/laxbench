@@ -99,7 +99,8 @@ data class FoulTimerDetail(
  *
  * [pause]/[resume] pause/resume every player's running entry at once, called from [GameScreen] at
  * exactly the same "Stop all clocks"/"Resume game" transitions that already pause/resume the game
- * clock and the time-out countdown -- mirroring [TimeOutCountdownViewModel]'s explicit
+ * clock and the time-out countdown, and also from the automatic quarter-boundary auto-stop /
+ * resume-into-next-quarter transitions -- mirroring [TimeOutCountdownViewModel]'s explicit
  * start()/cancel() call-site style rather than reactively observing the clock's state. [resume] is
  * also called when the game clock starts for the very first time, to correctly resume any foul
  * logged before "Start game" was ever pressed (an edge case with no dedicated UI gating, handled

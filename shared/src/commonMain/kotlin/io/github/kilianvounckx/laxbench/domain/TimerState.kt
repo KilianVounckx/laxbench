@@ -16,14 +16,19 @@ import kotlin.time.ComparableTimeMark
  * - [Paused] means the timer is frozen at exactly [Paused.elapsed] until it is next toggled back to
  *   running; querying [elapsedTime] at any later instant while paused still returns exactly that
  *   frozen value, ignoring the passage of time.
+ * - [Locked] means the timer is permanently frozen at exactly [Locked.elapsed] and can never be
+ *   toggled or resumed: it is only reached when the quarters feature auto-stops the game clock at
+ *   the end of the 4th quarter. [toggled] is a no-op on a [Locked] state, returning it unchanged
+ *   forever.
  *
  * [toggled] flips [NotStarted] to [Running] (starting the very first run segment from zero at
- * `now`), [Running] to [Paused] (freezing at the elapsed time as of `now`), or [Paused] to
- * [Running] (resuming from the frozen value, with a fresh [Running.mark] of `now`, so the very next
+ * `now`), [Running] to [Paused] (freezing at the elapsed time as of `now`), [Paused] to [Running]
+ * (resuming from the frozen value, with a fresh [Running.mark] of `now`, so the very next
  * [elapsedTime] call after a resume returns exactly the pre-pause value with zero elapsed since
- * `now == mark`). [NotStarted] is only ever the starting state and is never returned to once left.
- * This guarantees a finished run segment's time is folded into the next state exactly once — never
- * re-measured, never lost, never double-counted — no matter how many pause/resume cycles happen.
+ * `now == mark`), or [Locked] to [Locked] (no-op). [NotStarted] is only ever the starting state and
+ * is never returned to once left. This guarantees a finished run segment's time is folded into the
+ * next state exactly once — never re-measured, never lost, never double-counted — no matter how
+ * many pause/resume cycles happen, until the timer is locked at game end.
  */
 sealed class TimerState {
 
@@ -36,23 +41,29 @@ sealed class TimerState {
   /** Frozen at [elapsed] until next toggled back to [Running]. */
   data class Paused(val elapsed: ElapsedTime) : TimerState()
 
+  /** Frozen permanently at [elapsed]: [toggled] is a no-op, returning this unchanged, forever. */
+  data class Locked(val elapsed: ElapsedTime) : TimerState()
+
   /** The elapsed time this state represents as of [now]. */
   fun elapsedTime(now: ComparableTimeMark): ElapsedTime =
     when (this) {
       is NotStarted -> ElapsedTime.zero
       is Running -> ElapsedTime.of(accumulated.duration + (now - mark)) ?: ElapsedTime.zero
       is Paused -> elapsed
+      is Locked -> elapsed
     }
 
   /**
    * Flips [NotStarted] to [Running] (starting the first run segment from zero at [now]), [Running]
-   * to [Paused] (freezing at the elapsed time as of [now]), or [Paused] back to [Running] (resuming
-   * from its frozen elapsed time, starting a fresh run segment at [now]).
+   * to [Paused] (freezing at the elapsed time as of [now]), [Paused] back to [Running] (resuming
+   * from its frozen elapsed time, starting a fresh run segment at [now]), or [Locked] to [Locked]
+   * (no-op, returning this unchanged).
    */
   fun toggled(now: ComparableTimeMark): TimerState =
     when (this) {
       is NotStarted -> Running(ElapsedTime.zero, now)
       is Running -> Paused(elapsedTime(now))
       is Paused -> Running(elapsed, now)
+      is Locked -> this
     }
 }

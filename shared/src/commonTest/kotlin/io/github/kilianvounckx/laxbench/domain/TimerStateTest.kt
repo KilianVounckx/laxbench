@@ -84,4 +84,35 @@ class TimerStateTest {
     timeSource += 1.seconds
     assertEquals(ElapsedTime.of(3.seconds), state.elapsedTime(timeSource.markNow()))
   }
+
+  @Test
+  fun `Locked elapsedTime returns its frozen value regardless of how much time passes`() {
+    val timeSource = TestTimeSource()
+    val frozen = ElapsedTime.of(30.seconds)!!
+    val state: TimerState = TimerState.Locked(frozen)
+    assertEquals(frozen, state.elapsedTime(timeSource.markNow()))
+    timeSource += 5.seconds
+    assertEquals(frozen, state.elapsedTime(timeSource.markNow()))
+  }
+
+  @Test
+  fun `toggled on Locked returns the exact same Locked value unchanged`() {
+    val frozen = ElapsedTime.of(30.seconds)!!
+    val state = TimerState.Locked(frozen)
+    val toggled = state.toggled(TestTimeSource().markNow())
+    assertEquals(state, toggled)
+  }
+
+  @Test
+  fun `calling toggled multiple times on Locked always returns the same value`() {
+    val frozen = ElapsedTime.of(30.seconds)!!
+    val state: TimerState = TimerState.Locked(frozen)
+    val timeSource = TestTimeSource()
+    var current: TimerState = state
+    repeat(3) {
+      current = current.toggled(timeSource.markNow())
+      timeSource += 10.seconds
+    }
+    assertEquals(state, current)
+  }
 }

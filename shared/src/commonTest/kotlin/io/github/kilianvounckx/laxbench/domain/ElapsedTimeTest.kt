@@ -117,4 +117,32 @@ class ElapsedTimeTest {
     val result = current.maskedEdit(current.format(), current.format() + "9")
     assertEquals(current, result)
   }
+
+  @Test
+  fun `compareTo returns zero for two ElapsedTime instances wrapping equal durations`() {
+    val time1 = ElapsedTime.of(5.seconds)!!
+    val time2 = ElapsedTime.of(5.seconds)!!
+    assertEquals(0, time1.compareTo(time2))
+    assertEquals(false, time1 < time2)
+    assertEquals(false, time1 > time2)
+    assertEquals(true, time1 <= time2)
+    assertEquals(true, time1 >= time2)
+  }
+
+  @Test
+  fun `a smaller ElapsedTime compares less than a larger one`() {
+    val smaller = ElapsedTime.zero
+    val larger = ElapsedTime.of(1.seconds)!!
+    assertEquals(true, smaller < larger)
+    assertEquals(false, larger < smaller)
+  }
+
+  @Test
+  fun `ElapsedTime ordering matches the ordering of the wrapped duration`() {
+    val durations = listOf(10.seconds, 2.seconds, 90.seconds)
+    val elapsedTimes = durations.map { ElapsedTime.of(it)!! }
+    val sorted = elapsedTimes.sorted()
+    val expected = listOf(2.seconds, 10.seconds, 90.seconds).map { ElapsedTime.of(it)!! }
+    assertEquals(expected, sorted)
+  }
 }

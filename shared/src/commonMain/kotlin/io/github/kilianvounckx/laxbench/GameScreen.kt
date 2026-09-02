@@ -29,6 +29,7 @@ import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.Foul
 import io.github.kilianvounckx.laxbench.domain.FoulSeverity
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
+import io.github.kilianvounckx.laxbench.domain.Quarter
 import io.github.kilianvounckx.laxbench.domain.Score
 import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 import kotlin.time.Duration.Companion.milliseconds
@@ -87,6 +88,13 @@ private data class FaceOffDialogRequest(val elapsedTime: ElapsedTime)
  */
 private data class TimeOutDialogRequest(val elapsedTime: ElapsedTime)
 
+/**
+ * Marks that the tie pop-up (see [TieDialog]) should be shown. Carries no data — there is nothing
+ * to display beyond the fixed "the game ended in a tie" message — but modeled as a nullable request
+ * object rather than a plain boolean to match this file's existing *DialogRequest convention.
+ */
+private data object TieDialogRequest
+
 private data class PopupMessage(val id: Long, val message: String)
 
 /**
@@ -113,6 +121,7 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
     viewModel(viewModelStoreOwner = viewModelStoreOwner) { TimerViewModel() }
   val elapsedTime by timerViewModel.elapsedTime.collectAsStateWithLifecycle()
   val runState by timerViewModel.runState.collectAsStateWithLifecycle()
+  val currentQuarter = Quarter.of(elapsedTime)
 
   val scoreViewModel: ScoreViewModel =
     viewModel(viewModelStoreOwner = viewModelStoreOwner) { ScoreViewModel() }
@@ -138,6 +147,11 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
   val timeOutCountdownIsExpired by timeOutCountdownViewModel.isExpired.collectAsStateWithLifecycle()
   val timeOutCountdownIsVisible by timeOutCountdownViewModel.isVisible.collectAsStateWithLifecycle()
 
+  val intermissionCountdownViewModel: IntermissionCountdownViewModel =
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) { IntermissionCountdownViewModel() }
+  val intermissionRemainingTime by
+    intermissionCountdownViewModel.remainingTime.collectAsStateWithLifecycle()
+
   val foulTimerViewModel: FoulTimerViewModel =
     viewModel(viewModelStoreOwner = viewModelStoreOwner) { FoulTimerViewModel() }
   val foulTimerRemainingTimes by foulTimerViewModel.remainingTimes.collectAsStateWithLifecycle()
@@ -150,6 +164,7 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
   var saveDialogRequest by remember { mutableStateOf<SaveDialogRequest?>(null) }
   var faceOffDialogRequest by remember { mutableStateOf<FaceOffDialogRequest?>(null) }
   var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
+  var tieDialogRequest by remember { mutableStateOf<TieDialogRequest?>(null) }
 
   var gameSubScreen by remember { mutableStateOf(GameSubScreen.MAIN) }
   var cancelFoulTimersRequest by remember { mutableStateOf<FoulTimerPlayer?>(null) }
@@ -162,6 +177,17 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
   LaunchedEffect(foulTimerViewModel) {
     foulTimerViewModel.releaseEvents.collect { player ->
       addPopup("${teamsInfo.label(player)} is released")
+    }
+  }
+  LaunchedEffect(timerViewModel) {
+    timerViewModel.quarterEndedEvents.collect { quarterEnded ->
+      foulTimerViewModel.pause()
+      val intermissionDuration = quarterEnded.intermissionDuration
+      if (intermissionDuration != null) {
+        intermissionCountdownViewModel.start(intermissionDuration)
+      } else if (scoreViewModel.ourScore.value.count == scoreViewModel.opponentScore.value.count) {
+        tieDialogRequest = TieDialogRequest
+      }
     }
   }
   LaunchedEffect(foulTimerDetails, cancelFoulTimersRequest) {
@@ -245,12 +271,17 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
         }
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = elapsedTime.format(), style = MaterialTheme.typography.displayMedium)
+        Text(
+          text = "${currentQuarter.displayLabel()} quarter",
+          style = MaterialTheme.typography.bodyLarge,
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(
           onClick = {
             when (runState) {
               TimerViewModel.RunState.Paused -> {
                 timeOutCountdownViewModel.cancel()
+                intermissionCountdownViewModel.cancel()
                 timeOutDialogRequest = null
                 timerViewModel.toggle()
                 foulTimerViewModel.resume()
@@ -267,8 +298,10 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
                   foulTimerViewModel.resume()
                 }
               }
+              TimerViewModel.RunState.Locked -> Unit
             }
-          }
+          },
+          enabled = runState != TimerViewModel.RunState.Locked,
         ) {
           Text(
             text =
@@ -276,6 +309,7 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
                 TimerViewModel.RunState.NotStarted -> "Start game"
                 TimerViewModel.RunState.Running -> "Stop all clocks"
                 TimerViewModel.RunState.Paused -> "Resume game"
+                TimerViewModel.RunState.Locked -> "Game over"
               }
           )
         }
@@ -288,6 +322,10 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
             )
             Spacer(modifier = Modifier.height(16.dp))
           }
+        }
+        intermissionRemainingTime?.let { remaining ->
+          IntermissionCountdownDisplay(remainingTime = remaining)
+          Spacer(modifier = Modifier.height(16.dp))
         }
         Button(
           onClick = { foulDialogRequest = FoulDialogRequest(timerViewModel.elapsedTime.value) }
@@ -464,6 +502,8 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
       )
     }
   }
+
+  tieDialogRequest?.let { TieDialog(onDismiss = { tieDialogRequest = null }) }
 }
 
 /**
@@ -519,3 +559,27 @@ private fun TimeOutCountdownDisplay(remainingTime: ElapsedTime, isExpired: Boole
       else MaterialTheme.colorScheme.onSurface,
   )
 }
+
+/**
+ * The visible portion of an intermission countdown displayed between quarters (see [GameScreen] and
+ * [IntermissionCountdownViewModel]): renders [remainingTime] the same way the main game clock is
+ * rendered. Unlike the time-out countdown, this does not blink or otherwise alarm when reaching
+ * zero, since per this feature's non-goals, reaching zero has no special effect beyond the plain
+ * [remainingTime] reading [ElapsedTime.zero].
+ */
+@Composable
+private fun IntermissionCountdownDisplay(remainingTime: ElapsedTime) {
+  Text(
+    text = "Intermission: ${remainingTime.format()}",
+    style = MaterialTheme.typography.headlineSmall,
+  )
+}
+
+/** Returns the display label for a quarter (e.g., "1st", "2nd", "3rd", "4th"). */
+private fun Quarter.displayLabel(): String =
+  when (this) {
+    Quarter.FIRST -> "1st"
+    Quarter.SECOND -> "2nd"
+    Quarter.THIRD -> "3rd"
+    Quarter.FOURTH -> "4th"
+  }

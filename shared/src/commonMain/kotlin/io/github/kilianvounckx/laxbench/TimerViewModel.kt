@@ -3,11 +3,15 @@ package io.github.kilianvounckx.laxbench
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
+import io.github.kilianvounckx.laxbench.domain.Quarter
 import io.github.kilianvounckx.laxbench.domain.TimerState
+import kotlin.time.ComparableTimeMark
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -25,6 +29,13 @@ import kotlinx.coroutines.launch
  * whenever [toggle] is called (rather than waiting up to [TICK_INTERVAL] for the next tick), so the
  * displayed value and button label update instantly on click.
  *
+ * The clock additionally auto-stops (and, for the 4th quarter, permanently locks) at quarter
+ * boundaries (15:00, 30:00, 45:00, 60:00), detected via [Quarter.quarterJustEnded] to never skip a
+ * boundary even if a single tick jumps far enough to pass multiple. This is published via
+ * [quarterEndedEvents], which fires exactly once per quarter boundary crossed (in cumulative
+ * elapsed time, never repeating), allowing the surrounding UI to react by starting an intermission
+ * countdown or checking for a tie.
+ *
  * As an androidx.lifecycle `ViewModel` obtained via the Compose Multiplatform `viewModel()` API, a
  * single instance of this class is retained by the platform's `ViewModelStore` for as long as its
  * owner is alive. On Android that includes surviving a configuration change such as rotation: the
@@ -36,7 +47,7 @@ import kotlinx.coroutines.launch
 class TimerViewModel : ViewModel() {
 
   /**
-   * The three run/pause statuses [TimerState] can be in, without the timing payload ([TimerState]
+   * The four run/pause statuses [TimerState] can be in, without the timing payload ([TimerState]
    * carries the accumulated/mark/elapsed data needed to compute [ElapsedTime]; this enum exists
    * purely so callers such as [App] can switch on status — e.g. for the button label — without
    * depending on [TimerState] or its internal fields).
@@ -45,6 +56,7 @@ class TimerViewModel : ViewModel() {
     NotStarted,
     Running,
     Paused,
+    Locked,
   }
 
   private val _state = MutableStateFlow<TimerState>(TimerState.NotStarted)
@@ -55,10 +67,13 @@ class TimerViewModel : ViewModel() {
   private val _runState = MutableStateFlow(RunState.NotStarted)
   val runState: StateFlow<RunState> = _runState.asStateFlow()
 
+  private val _quarterEndedEvents = MutableSharedFlow<Quarter>(extraBufferCapacity = 4)
+  val quarterEndedEvents: SharedFlow<Quarter> = _quarterEndedEvents
+
   init {
     viewModelScope.launch {
       while (true) {
-        _elapsedTime.value = _state.value.elapsedTime(TimeSource.Monotonic.markNow())
+        refresh(TimeSource.Monotonic.markNow())
         delay(TICK_INTERVAL)
       }
     }
@@ -68,14 +83,34 @@ class TimerViewModel : ViewModel() {
   fun toggle() {
     val now = TimeSource.Monotonic.markNow()
     _state.update { it.toggled(now) }
-    val newState = _state.value
+    refresh(now)
+  }
+
+  private fun refresh(now: ComparableTimeMark) {
+    val previousElapsed = _elapsedTime.value
+    val stateBeforeCheck = _state.value
+    var liveElapsed = stateBeforeCheck.elapsedTime(now)
+
+    if (stateBeforeCheck is TimerState.Running) {
+      Quarter.quarterJustEnded(previousElapsed, liveElapsed)?.let { quarterEnded ->
+        val boundary = quarterEnded.endTime
+        val newState =
+          if (quarterEnded == Quarter.FOURTH) TimerState.Locked(boundary)
+          else TimerState.Paused(boundary)
+        _state.value = newState
+        liveElapsed = boundary
+        _quarterEndedEvents.tryEmit(quarterEnded)
+      }
+    }
+
+    _elapsedTime.value = liveElapsed
     _runState.value =
-      when (newState) {
+      when (_state.value) {
         is TimerState.NotStarted -> RunState.NotStarted
         is TimerState.Running -> RunState.Running
         is TimerState.Paused -> RunState.Paused
+        is TimerState.Locked -> RunState.Locked
       }
-    _elapsedTime.value = newState.elapsedTime(now)
   }
 
   private companion object {

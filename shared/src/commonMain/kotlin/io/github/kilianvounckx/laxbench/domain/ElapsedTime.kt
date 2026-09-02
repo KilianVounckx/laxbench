@@ -9,9 +9,16 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * Constructed only through [of] or [zero], so every existing instance is guaranteed to wrap a
  * duration that is not negative.
+ *
+ * Ordered the same way as the wrapped [duration] (via [compareTo]) — comparing two elapsed times is
+ * a meaningful operation in its own right (e.g. [Quarter] compares elapsed times against quarter
+ * boundaries), so this type implements [Comparable] directly rather than requiring every caller to
+ * reach into `.duration` before comparing.
  */
 @JvmInline
-value class ElapsedTime private constructor(val duration: Duration) {
+value class ElapsedTime private constructor(val duration: Duration) : Comparable<ElapsedTime> {
+
+  override fun compareTo(other: ElapsedTime): Int = duration.compareTo(other.duration)
 
   /**
    * Renders this elapsed time as `MM:SS.DD` — minutes, seconds, and hundredths of a second. Seconds
