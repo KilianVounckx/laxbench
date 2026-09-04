@@ -31,7 +31,11 @@ private class GameViewModelStoreOwner : ViewModelStoreOwner {
 @Composable
 @Preview
 fun App() {
-  MaterialTheme {
+  MaterialTheme(
+    colorScheme = LaxbenchColorScheme,
+    typography = LaxbenchTypography,
+    shapes = LaxbenchShapes,
+  ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Setup) }
 
     when (val current = screen) {
