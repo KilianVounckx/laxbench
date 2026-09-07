@@ -167,115 +167,117 @@ fun FoulDialog(
     properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text("Record foul") },
     text = {
-      when (val currentStep = step) {
-        is FoulDialogStep.ChooseTeam ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ScoreViewModel.Team.entries.forEach { team ->
-              TextButton(onClick = { step = FoulDialogStep.EnterPlayer(team) }) {
-                Text(teams.label(team))
+      ScrollableDialogContent {
+        when (val currentStep = step) {
+          is FoulDialogStep.ChooseTeam ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              ScoreViewModel.Team.entries.forEach { team ->
+                TextButton(onClick = { step = FoulDialogStep.EnterPlayer(team) }) {
+                  Text(teams.label(team))
+                }
               }
             }
-          }
-        is FoulDialogStep.EnterPlayer ->
-          OutlinedTextField(
-            value = playerText,
-            onValueChange = { playerText = it },
-            label = { Text("Player number") },
-            isError = playerText.isNotBlank() && player == null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-          )
-        is FoulDialogStep.ChooseSeverity ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(
-              onClick = {
-                step = FoulDialogStep.ChooseMinorType(currentStep.team, currentStep.player)
-              }
-            ) {
-              Text("Minor")
-            }
-            TextButton(
-              onClick = {
-                step = FoulDialogStep.ChooseMajorType(currentStep.team, currentStep.player)
-              }
-            ) {
-              Text("Major")
-            }
-            TextButton(
-              onClick = {
-                completeFoul(currentStep.team, currentStep.player, FoulSeverity.Expulsion)
-              }
-            ) {
-              Text("Expulsion")
-            }
-          }
-        is FoulDialogStep.ChooseMinorType ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            MinorFoulType.entries.forEach { type ->
+          is FoulDialogStep.EnterPlayer ->
+            OutlinedTextField(
+              value = playerText,
+              onValueChange = { playerText = it },
+              label = { Text("Player number") },
+              isError = playerText.isNotBlank() && player == null,
+              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+              singleLine = true,
+            )
+          is FoulDialogStep.ChooseSeverity ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
               TextButton(
                 onClick = {
-                  completeFoul(currentStep.team, currentStep.player, FoulSeverity.Minor(type))
+                  step = FoulDialogStep.ChooseMinorType(currentStep.team, currentStep.player)
                 }
               ) {
-                Text(type.label)
+                Text("Minor")
               }
-            }
-          }
-        is FoulDialogStep.ChooseMajorType ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            MajorFoulType.entries.forEach { type ->
               TextButton(
                 onClick = {
-                  step =
-                    FoulDialogStep.ChooseFoulDuration(currentStep.team, currentStep.player, type)
+                  step = FoulDialogStep.ChooseMajorType(currentStep.team, currentStep.player)
                 }
               ) {
-                Text(type.label)
+                Text("Major")
               }
-            }
-          }
-        is FoulDialogStep.ChooseFoulDuration ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FoulDuration.entries.forEach { duration ->
               TextButton(
                 onClick = {
-                  completeFoul(
-                    currentStep.team,
-                    currentStep.player,
-                    FoulSeverity.Major(currentStep.type, duration),
-                  )
+                  completeFoul(currentStep.team, currentStep.player, FoulSeverity.Expulsion)
                 }
               ) {
-                Text(duration.label)
+                Text("Expulsion")
               }
             }
-          }
-        is FoulDialogStep.ConfirmMore ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(
-              onClick = {
-                playerText = ""
-                step = FoulDialogStep.ChooseTeam
+          is FoulDialogStep.ChooseMinorType ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              MinorFoulType.entries.forEach { type ->
+                TextButton(
+                  onClick = {
+                    completeFoul(currentStep.team, currentStep.player, FoulSeverity.Minor(type))
+                  }
+                ) {
+                  Text(type.label)
+                }
               }
-            ) {
-              Text("Add another foul")
             }
-            TextButton(
-              onClick = {
-                pendingBatch.forEach { onConfirm(it.team, it.player, it.severity) }
-                onDismiss()
+          is FoulDialogStep.ChooseMajorType ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              MajorFoulType.entries.forEach { type ->
+                TextButton(
+                  onClick = {
+                    step =
+                      FoulDialogStep.ChooseFoulDuration(currentStep.team, currentStep.player, type)
+                  }
+                ) {
+                  Text(type.label)
+                }
               }
-            ) {
-              Text("Done")
             }
-          }
-        is FoulDialogStep.ConfirmCancelChoice ->
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { step = FoulDialogStep.ConfirmMore }) {
-              Text("Cancel only this foul")
+          is FoulDialogStep.ChooseFoulDuration ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              FoulDuration.entries.forEach { duration ->
+                TextButton(
+                  onClick = {
+                    completeFoul(
+                      currentStep.team,
+                      currentStep.player,
+                      FoulSeverity.Major(currentStep.type, duration),
+                    )
+                  }
+                ) {
+                  Text(duration.label)
+                }
+              }
             }
-            TextButton(onClick = onDismiss) { Text("Cancel all") }
-          }
+          is FoulDialogStep.ConfirmMore ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              TextButton(
+                onClick = {
+                  playerText = ""
+                  step = FoulDialogStep.ChooseTeam
+                }
+              ) {
+                Text("Add another foul")
+              }
+              TextButton(
+                onClick = {
+                  pendingBatch.forEach { onConfirm(it.team, it.player, it.severity) }
+                  onDismiss()
+                }
+              ) {
+                Text("Done")
+              }
+            }
+          is FoulDialogStep.ConfirmCancelChoice ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              TextButton(onClick = { step = FoulDialogStep.ConfirmMore }) {
+                Text("Cancel only this foul")
+              }
+              TextButton(onClick = onDismiss) { Text("Cancel all") }
+            }
+        }
       }
     },
     confirmButton = {

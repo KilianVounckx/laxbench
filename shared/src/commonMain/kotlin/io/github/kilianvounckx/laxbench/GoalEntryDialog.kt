@@ -1,6 +1,5 @@
 package io.github.kilianvounckx.laxbench
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -37,7 +36,7 @@ fun GoalEntryDialog(
     properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text(title) },
     text = {
-      Column {
+      ScrollableDialogContent {
         OutlinedTextField(
           value = scorerText,
           onValueChange = { scorerText = it },

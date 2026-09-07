@@ -72,7 +72,7 @@ fun FoulEntryDialog(
     properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text(title) },
     text = {
-      Column {
+      ScrollableDialogContent {
         OutlinedTextField(
           value = playerText,
           onValueChange = { playerText = it },

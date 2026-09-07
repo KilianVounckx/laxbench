@@ -1,6 +1,5 @@
 package io.github.kilianvounckx.laxbench
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,7 +25,9 @@ fun ElapsedTimeEntryDialog(
     properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text(title) },
     text = {
-      Column { ElapsedTimeField(value = elapsedTime, onValueChange = { elapsedTime = it }) }
+      ScrollableDialogContent {
+        ElapsedTimeField(value = elapsedTime, onValueChange = { elapsedTime = it })
+      }
     },
     confirmButton = { TextButton(onClick = { onConfirm(elapsedTime) }) { Text("Confirm") } },
     dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

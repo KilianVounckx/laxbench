@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,7 +43,7 @@ fun SetupScreen(onStartGame: (TeamsInfo) -> Unit) {
   val visitingColor = TeamColor.parse(visitingColorText)
 
   Column(
-    modifier = Modifier.safeContentPadding().fillMaxSize(),
+    modifier = Modifier.safeContentPadding().fillMaxSize().verticalScroll(rememberScrollState()),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {
