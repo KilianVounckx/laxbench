@@ -10,30 +10,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Privately holds each team's full history of recorded [FaceOff] wins for the rest of the app
- * session, the same in-memory-only, non-persisted way [SaveViewModel], [FoulViewModel], and
- * [TimeOutViewModel] hold each team's history. Each face-off gets a unique id when recorded.
- * [recordFaceOff] is the only way to add a face-off, always appending it as the newest entry with a
- * unique id. [removeFaceOff] removes a specific face-off by id. [printDebugSummary] prints both
- * teams' histories at once for debugging, and [faceOffs] returns a single team's current history as
- * a reactive [StateFlow].
+ * Privately holds each team's full history of recorded [FaceOff] wins for the current game, the
+ * same way [SaveViewModel], [FoulViewModel], and [TimeOutViewModel] hold each team's history. Each
+ * face-off gets a unique id when recorded. [recordFaceOff] is the only way to add a face-off,
+ * always appending it as the newest entry with a unique id. [removeFaceOff] removes a specific
+ * face-off by id. [printDebugSummary] prints both teams' histories at once for debugging, and
+ * [faceOffs] returns a single team's current history as a reactive [StateFlow].
  *
  * This class reuses [ScoreViewModel.Team] to identify which team won a face-off, rather than
  * defining a fifth, parallel team enum -- this [FaceOffViewModel], [SaveViewModel],
  * [TimeOutViewModel], [FoulViewModel], and [ScoreViewModel] each independently track different
  * per-team data about the exact same two sides of the same game.
  *
- * As with [ScoreViewModel], [FoulViewModel], [TimeOutViewModel], [SaveViewModel], and
- * [TimerViewModel], a fresh instance (obtained the same way, via the Compose Multiplatform
- * `viewModel()` API) always starts both histories empty, and this class does not persist across
- * process death.
+ * The constructor can be seeded with [initialHomeFaceOffs] and [initialVisitingFaceOffs] to restore
+ * a previously saved game state.
  */
-class FaceOffViewModel : ViewModel() {
+class FaceOffViewModel(
+  initialHomeFaceOffs: FaceOffs = FaceOffs.empty,
+  initialVisitingFaceOffs: FaceOffs = FaceOffs.empty,
+) : ViewModel() {
 
-  private val _homeFaceOffs = MutableStateFlow(FaceOffs.empty)
-  private val _visitingFaceOffs = MutableStateFlow(FaceOffs.empty)
+  private val _homeFaceOffs = MutableStateFlow(initialHomeFaceOffs)
+  private val _visitingFaceOffs = MutableStateFlow(initialVisitingFaceOffs)
 
-  private var nextId = 0L
+  private var nextId =
+    (((initialHomeFaceOffs.all + initialVisitingFaceOffs.all).maxOfOrNull { it.id } ?: -1L) + 1)
 
   /**
    * Records a face-off for [team] at the given [elapsedTime], appending it to that team's

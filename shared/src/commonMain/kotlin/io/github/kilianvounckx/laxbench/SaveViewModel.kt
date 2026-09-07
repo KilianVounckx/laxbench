@@ -10,28 +10,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Privately holds each team's full history of recorded [Save]s for the rest of the app session, the
- * same in-memory-only, non-persisted way [FoulViewModel] and [TimeOutViewModel] hold each team's
- * history. Each save gets a unique id when recorded. [recordSave] is the only way to add a save,
- * always appending it as the newest entry with a unique id. [removeSave] removes a specific save by
- * id. [printDebugSummary] prints both teams' histories at once for debugging, and [saves] returns a
- * single team's current history as a reactive [StateFlow].
+ * Privately holds each team's full history of recorded [Save]s for the current game, the same way
+ * [FoulViewModel] and [TimeOutViewModel] hold each team's history. Each save gets a unique id when
+ * recorded. [recordSave] is the only way to add a save, always appending it as the newest entry
+ * with a unique id. [removeSave] removes a specific save by id. [printDebugSummary] prints both
+ * teams' histories at once for debugging, and [saves] returns a single team's current history as a
+ * reactive [StateFlow].
  *
  * This class reuses [ScoreViewModel.Team] to identify which team's goalie made a save, rather than
  * defining a fourth, parallel team enum -- this [SaveViewModel], [TimeOutViewModel],
  * [FoulViewModel], and [ScoreViewModel] each independently track different per-team data about the
  * exact same two sides of the same game.
  *
- * As with [ScoreViewModel], [FoulViewModel], [TimeOutViewModel], and [TimerViewModel], a fresh
- * instance (obtained the same way, via the Compose Multiplatform `viewModel()` API) always starts
- * both histories empty, and this class does not persist across process death.
+ * The constructor can be seeded with [initialHomeSaves] and [initialVisitingSaves] to restore a
+ * previously saved game state.
  */
-class SaveViewModel : ViewModel() {
+class SaveViewModel(
+  initialHomeSaves: Saves = Saves.empty,
+  initialVisitingSaves: Saves = Saves.empty,
+) : ViewModel() {
 
-  private val _homeSaves = MutableStateFlow(Saves.empty)
-  private val _visitingSaves = MutableStateFlow(Saves.empty)
+  private val _homeSaves = MutableStateFlow(initialHomeSaves)
+  private val _visitingSaves = MutableStateFlow(initialVisitingSaves)
 
-  private var nextId = 0L
+  private var nextId =
+    (((initialHomeSaves.all + initialVisitingSaves.all).maxOfOrNull { it.id } ?: -1L) + 1)
 
   /**
    * Records a save for [team] at the given [elapsedTime], appending it to that team's save history.

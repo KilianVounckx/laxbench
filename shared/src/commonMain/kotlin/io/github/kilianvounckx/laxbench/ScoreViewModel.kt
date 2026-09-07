@@ -32,12 +32,15 @@ import kotlinx.coroutines.flow.update
  * This class is entirely independent of [TimerViewModel]: it never reads the timer's state itself.
  * The [Goal] passed to [recordGoal] already carries whatever elapsed time the caller captured when
  * the goal-recording pop-up was opened (at tap time, not at confirmation time), so scoring and the
- * game clock still can never affect each other from within this class. It does not persist across
- * process death, matching the timer's existing non-persistence behavior; a fresh instance (obtained
- * the same way as [TimerViewModel], via the Compose Multiplatform `viewModel()` API) always starts
- * both tallies at zero and both goal histories empty.
+ * game clock still can never affect each other from within this class.
+ *
+ * The constructor can be seeded with [initialOurGoals] and [initialOpponentGoals] to restore a
+ * previously saved game state; when supplied, the scores are computed from the goal histories.
  */
-class ScoreViewModel : ViewModel() {
+class ScoreViewModel(
+  initialOurGoals: Goals = Goals.empty,
+  initialOpponentGoals: Goals = Goals.empty,
+) : ViewModel() {
 
   /** Which side of the score tracker a goal, or a correction, belongs to. */
   enum class Team {
@@ -45,16 +48,23 @@ class ScoreViewModel : ViewModel() {
     VISITING,
   }
 
-  private val _ourScore = MutableStateFlow(Score.zero)
+  private val _ourGoals = MutableStateFlow(initialOurGoals)
+  private val _opponentGoals = MutableStateFlow(initialOpponentGoals)
+
+  private fun computeScore(goals: Goals): Score {
+    var score = Score.zero
+    repeat(goals.all.size) { score = score.incremented() }
+    return score
+  }
+
+  private val _ourScore = MutableStateFlow(computeScore(initialOurGoals))
   val ourScore: StateFlow<Score> = _ourScore.asStateFlow()
 
-  private val _opponentScore = MutableStateFlow(Score.zero)
+  private val _opponentScore = MutableStateFlow(computeScore(initialOpponentGoals))
   val opponentScore: StateFlow<Score> = _opponentScore.asStateFlow()
 
-  private val _ourGoals = MutableStateFlow(Goals.empty)
-  private val _opponentGoals = MutableStateFlow(Goals.empty)
-
-  private var nextGoalId = 0L
+  private var nextGoalId =
+    (((initialOurGoals.all + initialOpponentGoals.all).maxOfOrNull { it.id } ?: -1L) + 1)
 
   /**
    * Records a goal for [team]: increments that team's score by one and appends a new [Goal] with a

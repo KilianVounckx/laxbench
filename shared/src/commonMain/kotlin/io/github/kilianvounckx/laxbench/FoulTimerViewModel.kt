@@ -111,8 +111,8 @@ data class FoulTimerDetail(
  * [TimeSource.Monotonic] -- never [kotlin.time.TestTimeSource], which is a manual, non-advancing
  * clock meant only for unit tests and would make elapsed time never advance if used here.
  *
- * As with the other per-game ViewModels, this does not persist across process death, and a fresh
- * instance always starts with no timers.
+ * Unlike the other per-game ViewModels, this one is deliberately not captured by the autosave: a
+ * fresh instance always starts with no timers, even when resuming a saved game.
  */
 class FoulTimerViewModel : ViewModel() {
 

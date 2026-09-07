@@ -115,6 +115,23 @@ Enforced by a custom `checkDependencyVersionCatalogUsage` task (root `build.grad
 if any `build.gradle.kts` contains a hardcoded `group:artifact:version` coordinate or a
 `id(...) version "..."` plugin declaration.
 
+## 9. Comments
+
+Prefer writing code that's clear on its own — well-named types, functions, and variables — over
+explaining it with a comment. Only add a comment when the code genuinely can't express the point by
+itself: a non-obvious *why* (a hidden constraint, a subtle invariant, a workaround for a specific
+bug, a design decision an implementer could plausibly get wrong). Never add a comment that just
+restates *what* the code does, since well-named identifiers already do that.
+
+A comment must always reflect the current state of the program. When a change makes an existing
+comment inaccurate or stale — including a KDoc block that previously described behavior a change
+just altered — update or remove that comment as part of the same change, not as a follow-up. A
+comment that was true when written but is wrong now is worse than no comment: it actively misleads
+whoever reads it next.
+
+Not mechanically enforceable — checked in review against this file (see
+`.claude/agents/feature-reviewer.md`).
+
 ## Git workflow
 
 Never run git commands that change repository state — `commit`, `push`, `reset`, `stash`,

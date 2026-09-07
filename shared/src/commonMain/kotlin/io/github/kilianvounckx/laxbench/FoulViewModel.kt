@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Privately holds each team's full history of recorded [Foul]s for the rest of the app session, the
- * same in-memory-only, non-persisted way [ScoreViewModel] holds each team's goal history. Each foul
- * gets a unique id when recorded, used to identify it in edit/delete operations and linked to its
- * matching foul-timer entry so the timer can be adjusted or cancelled by Manage Game.
+ * Privately holds each team's full history of recorded [Foul]s for the current game, the same way
+ * [ScoreViewModel] holds each team's goal history. Each foul gets a unique id when recorded, used
+ * to identify it in edit/delete operations and linked to its matching foul-timer entry so the timer
+ * can be adjusted or cancelled by Manage Game.
  *
  * [recordFoul] is the only way to add a foul, always appending it as the newest entry with a unique
  * id and returning the created [Foul] so the caller can link it to a foul-timer entry with the same
@@ -28,16 +28,19 @@ import kotlinx.coroutines.flow.update
  * track different per-team data (foul history here, score/goal history there) about the exact same
  * two sides of the same game.
  *
- * As with [ScoreViewModel] and [TimerViewModel], a fresh instance (obtained the same way, via the
- * Compose Multiplatform `viewModel()` API) always starts both histories empty, and this class does
- * not persist across process death.
+ * The constructor can be seeded with [initialHomeFouls] and [initialVisitingFouls] to restore a
+ * previously saved game state.
  */
-class FoulViewModel : ViewModel() {
+class FoulViewModel(
+  initialHomeFouls: Fouls = Fouls.empty,
+  initialVisitingFouls: Fouls = Fouls.empty,
+) : ViewModel() {
 
-  private val _homeFouls = MutableStateFlow(Fouls.empty)
-  private val _visitingFouls = MutableStateFlow(Fouls.empty)
+  private val _homeFouls = MutableStateFlow(initialHomeFouls)
+  private val _visitingFouls = MutableStateFlow(initialVisitingFouls)
 
-  private var nextId = 0L
+  private var nextId =
+    (((initialHomeFouls.all + initialVisitingFouls.all).maxOfOrNull { it.id } ?: -1L) + 1)
 
   /**
    * Records a foul for [team], appending it to that team's foul history with a unique id, and

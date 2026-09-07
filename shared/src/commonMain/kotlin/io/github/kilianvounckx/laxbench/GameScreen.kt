@@ -31,11 +31,16 @@ import io.github.kilianvounckx.laxbench.domain.FoulSeverity
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
 import io.github.kilianvounckx.laxbench.domain.Quarter
 import io.github.kilianvounckx.laxbench.domain.Score
-import io.github.kilianvounckx.laxbench.domain.TeamsInfo
+import io.github.kilianvounckx.laxbench.persistence.GameStorage
+import io.github.kilianvounckx.laxbench.persistence.toSnapshot
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.launch
 
 private val BLINK_INTERVAL = 500.milliseconds
+private val AUTOSAVE_ELAPSED_TIME_INTERVAL = 1.seconds
 
 /**
  * State backing the goal-recording pop-up (see [GameScreen] and [GoalDialog]): which
@@ -113,33 +118,45 @@ private enum class GameSubScreen {
 /**
  * The game screen displaying the current score, timer, and buttons for recording goals, fouls,
  * saves, face-offs, and time-outs. All per-game ViewModels are obtained from the provided
- * [viewModelStoreOwner].
+ * [viewModelStoreOwner] and initialized with the provided [initialState].
  */
 @Composable
-internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelStoreOwner) {
+internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: ViewModelStoreOwner) {
   val timerViewModel: TimerViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { TimerViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      TimerViewModel(initialState.elapsedTime, initialState.runState)
+    }
   val elapsedTime by timerViewModel.elapsedTime.collectAsStateWithLifecycle()
   val runState by timerViewModel.runState.collectAsStateWithLifecycle()
   val currentQuarter = Quarter.of(elapsedTime)
 
   val scoreViewModel: ScoreViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { ScoreViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      ScoreViewModel(initialState.homeGoals, initialState.visitingGoals)
+    }
   val ourScore by scoreViewModel.ourScore.collectAsStateWithLifecycle()
   val opponentScore by scoreViewModel.opponentScore.collectAsStateWithLifecycle()
 
   val teamsViewModel: TeamsViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { TeamsViewModel(initialTeams) }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) { TeamsViewModel(initialState.teams) }
   val teamsInfo by teamsViewModel.teamsInfo.collectAsStateWithLifecycle()
 
   val foulViewModel: FoulViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { FoulViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      FoulViewModel(initialState.homeFouls, initialState.visitingFouls)
+    }
   val saveViewModel: SaveViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { SaveViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      SaveViewModel(initialState.homeSaves, initialState.visitingSaves)
+    }
   val faceOffViewModel: FaceOffViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { FaceOffViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      FaceOffViewModel(initialState.homeFaceOffs, initialState.visitingFaceOffs)
+    }
   val timeOutViewModel: TimeOutViewModel =
-    viewModel(viewModelStoreOwner = viewModelStoreOwner) { TimeOutViewModel() }
+    viewModel(viewModelStoreOwner = viewModelStoreOwner) {
+      TimeOutViewModel(initialState.homeTimeOuts, initialState.visitingTimeOuts)
+    }
   val timeOutCountdownViewModel: TimeOutCountdownViewModel =
     viewModel(viewModelStoreOwner = viewModelStoreOwner) { TimeOutCountdownViewModel() }
   val timeOutCountdownRemainingTime by
@@ -194,6 +211,61 @@ internal fun GameScreen(initialTeams: TeamsInfo, viewModelStoreOwner: ViewModelS
     val requestedPlayer = cancelFoulTimersRequest
     if (requestedPlayer != null && foulTimerDetails[requestedPlayer] == null) {
       cancelFoulTimersRequest = null
+    }
+  }
+
+  LaunchedEffect(
+    teamsViewModel,
+    timerViewModel,
+    scoreViewModel,
+    foulViewModel,
+    saveViewModel,
+    faceOffViewModel,
+    timeOutViewModel,
+  ) {
+    fun snapshotNow() {
+      val current =
+        GameInitialState(
+          teams = teamsViewModel.teamsInfo.value,
+          elapsedTime = timerViewModel.elapsedTime.value,
+          runState = timerViewModel.runState.value,
+          homeGoals = scoreViewModel.goals(ScoreViewModel.Team.HOME).value,
+          visitingGoals = scoreViewModel.goals(ScoreViewModel.Team.VISITING).value,
+          homeFouls = foulViewModel.fouls(ScoreViewModel.Team.HOME).value,
+          visitingFouls = foulViewModel.fouls(ScoreViewModel.Team.VISITING).value,
+          homeSaves = saveViewModel.saves(ScoreViewModel.Team.HOME).value,
+          visitingSaves = saveViewModel.saves(ScoreViewModel.Team.VISITING).value,
+          homeFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.HOME).value,
+          visitingFaceOffs = faceOffViewModel.faceOffs(ScoreViewModel.Team.VISITING).value,
+          homeTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.HOME).value,
+          visitingTimeOuts = timeOutViewModel.timeOuts(ScoreViewModel.Team.VISITING).value,
+        )
+      GameStorage.save(current.toSnapshot())
+    }
+
+    launch {
+      merge(
+          teamsViewModel.teamsInfo,
+          timerViewModel.runState,
+          scoreViewModel.goals(ScoreViewModel.Team.HOME),
+          scoreViewModel.goals(ScoreViewModel.Team.VISITING),
+          foulViewModel.fouls(ScoreViewModel.Team.HOME),
+          foulViewModel.fouls(ScoreViewModel.Team.VISITING),
+          saveViewModel.saves(ScoreViewModel.Team.HOME),
+          saveViewModel.saves(ScoreViewModel.Team.VISITING),
+          faceOffViewModel.faceOffs(ScoreViewModel.Team.HOME),
+          faceOffViewModel.faceOffs(ScoreViewModel.Team.VISITING),
+          timeOutViewModel.timeOuts(ScoreViewModel.Team.HOME),
+          timeOutViewModel.timeOuts(ScoreViewModel.Team.VISITING),
+        )
+        .collect { snapshotNow() }
+    }
+
+    launch {
+      while (true) {
+        delay(AUTOSAVE_ELAPSED_TIME_INTERVAL)
+        if (timerViewModel.runState.value == TimerViewModel.RunState.Running) snapshotNow()
+      }
     }
   }
 

@@ -43,8 +43,15 @@ import kotlinx.coroutines.launch
  * rather than recreated, so the displayed time and pause/resume state keep counting/holding
  * correctly across rotation with no Android-specific code required here or anywhere else in the
  * app.
+ *
+ * The constructor can be seeded with [initialElapsedTime] and [initialRunState] to restore a
+ * previously saved game state; when both are supplied, the timer resumes ticking from the restored
+ * time.
  */
-class TimerViewModel : ViewModel() {
+class TimerViewModel(
+  initialElapsedTime: ElapsedTime = ElapsedTime.zero,
+  initialRunState: RunState = RunState.NotStarted,
+) : ViewModel() {
 
   /**
    * The four run/pause statuses [TimerState] can be in, without the timing payload ([TimerState]
@@ -59,12 +66,20 @@ class TimerViewModel : ViewModel() {
     Locked,
   }
 
-  private val _state = MutableStateFlow<TimerState>(TimerState.NotStarted)
+  private val _state =
+    MutableStateFlow<TimerState>(
+      when (initialRunState) {
+        RunState.NotStarted -> TimerState.NotStarted
+        RunState.Paused -> TimerState.Paused(initialElapsedTime)
+        RunState.Locked -> TimerState.Locked(initialElapsedTime)
+        RunState.Running -> TimerState.Running(initialElapsedTime, TimeSource.Monotonic.markNow())
+      }
+    )
 
-  private val _elapsedTime = MutableStateFlow(ElapsedTime.zero)
+  private val _elapsedTime = MutableStateFlow(initialElapsedTime)
   val elapsedTime: StateFlow<ElapsedTime> = _elapsedTime.asStateFlow()
 
-  private val _runState = MutableStateFlow(RunState.NotStarted)
+  private val _runState = MutableStateFlow(initialRunState)
   val runState: StateFlow<RunState> = _runState.asStateFlow()
 
   private val _quarterEndedEvents = MutableSharedFlow<Quarter>(extraBufferCapacity = 4)

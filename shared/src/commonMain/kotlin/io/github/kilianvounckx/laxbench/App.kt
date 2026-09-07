@@ -9,12 +9,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
-import io.github.kilianvounckx.laxbench.domain.TeamsInfo
+import io.github.kilianvounckx.laxbench.persistence.GameStorage
+import io.github.kilianvounckx.laxbench.persistence.toGameInitialStateOrNull
 
 private sealed interface Screen {
   data object Setup : Screen
 
-  data class Game(val teams: TeamsInfo, val viewModelStoreOwner: GameViewModelStoreOwner) : Screen
+  data class Resume(val initialState: GameInitialState) : Screen
+
+  data class Game(
+    val initialState: GameInitialState,
+    val viewModelStoreOwner: GameViewModelStoreOwner,
+  ) : Screen
 }
 
 /**
@@ -36,15 +42,30 @@ fun App() {
     typography = LaxbenchTypography,
     shapes = LaxbenchShapes,
   ) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Setup) }
+    var screen by remember {
+      mutableStateOf<Screen>(
+        GameStorage.load()?.toGameInitialStateOrNull()?.let { Screen.Resume(it) } ?: Screen.Setup
+      )
+    }
 
     when (val current = screen) {
       Screen.Setup ->
         SetupScreen(
-          onStartGame = { teams -> screen = Screen.Game(teams, GameViewModelStoreOwner()) }
+          onStartGame = { teams ->
+            screen = Screen.Game(GameInitialState.fresh(teams), GameViewModelStoreOwner())
+          }
+        )
+      is Screen.Resume ->
+        ResumeGameScreen(
+          savedTeams = current.initialState.teams,
+          onContinue = { screen = Screen.Game(current.initialState, GameViewModelStoreOwner()) },
+          onNewGame = { screen = Screen.Setup },
         )
       is Screen.Game ->
-        GameScreen(initialTeams = current.teams, viewModelStoreOwner = current.viewModelStoreOwner)
+        GameScreen(
+          initialState = current.initialState,
+          viewModelStoreOwner = current.viewModelStoreOwner,
+        )
     }
   }
 }

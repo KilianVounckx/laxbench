@@ -10,28 +10,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Privately holds each team's full history of recorded [TimeOut] requests for the rest of the app
- * session, the same in-memory-only, non-persisted way [FoulViewModel] holds each team's foul
- * history. Each time-out gets a unique id when recorded. [recordTimeOut] is the only way to add a
- * time-out, always appending it as the newest entry with a unique id. [removeTimeOut] removes a
- * specific time-out by id. [printDebugSummary] prints both teams' histories at once for debugging,
- * and [timeOuts] returns a single team's current history as a reactive [StateFlow].
+ * Privately holds each team's full history of recorded [TimeOut] requests for the current game, the
+ * same way [FoulViewModel] holds each team's foul history. Each time-out gets a unique id when
+ * recorded. [recordTimeOut] is the only way to add a time-out, always appending it as the newest
+ * entry with a unique id. [removeTimeOut] removes a specific time-out by id. [printDebugSummary]
+ * prints both teams' histories at once for debugging, and [timeOuts] returns a single team's
+ * current history as a reactive [StateFlow].
  *
  * This class reuses [ScoreViewModel.Team] to identify which side requested a time-out, rather than
  * defining a third, parallel team enum -- this [TimeOutViewModel], [FoulViewModel], and
  * [ScoreViewModel] each independently track different per-team data about the exact same two sides
  * of the same game.
  *
- * As with [ScoreViewModel], [FoulViewModel], and [TimerViewModel], a fresh instance (obtained the
- * same way, via the Compose Multiplatform `viewModel()` API) always starts both histories empty,
- * and this class does not persist across process death.
+ * The constructor can be seeded with [initialHomeTimeOuts] and [initialVisitingTimeOuts] to restore
+ * a previously saved game state.
  */
-class TimeOutViewModel : ViewModel() {
+class TimeOutViewModel(
+  initialHomeTimeOuts: TimeOuts = TimeOuts.empty,
+  initialVisitingTimeOuts: TimeOuts = TimeOuts.empty,
+) : ViewModel() {
 
-  private val _homeTimeOuts = MutableStateFlow(TimeOuts.empty)
-  private val _visitingTimeOuts = MutableStateFlow(TimeOuts.empty)
+  private val _homeTimeOuts = MutableStateFlow(initialHomeTimeOuts)
+  private val _visitingTimeOuts = MutableStateFlow(initialVisitingTimeOuts)
 
-  private var nextId = 0L
+  private var nextId =
+    (((initialHomeTimeOuts.all + initialVisitingTimeOuts.all).maxOfOrNull { it.id } ?: -1L) + 1)
 
   /**
    * Records a time-out for [team] at the given [elapsedTime], appending it to that team's time-out
