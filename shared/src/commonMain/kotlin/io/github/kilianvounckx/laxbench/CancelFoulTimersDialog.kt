@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 
 private sealed class CancelFoulTimersStep {
@@ -42,6 +43,7 @@ fun CancelFoulTimersDialog(
   var step by remember { mutableStateOf<CancelFoulTimersStep>(CancelFoulTimersStep.ChooseAction) }
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text("Cancel fouls for ${teams.label(player)}") },
     text = {
       when (step) {

@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.kilianvounckx.laxbench.domain.FoulDuration
 import io.github.kilianvounckx.laxbench.domain.FoulSeverity
 import io.github.kilianvounckx.laxbench.domain.MajorFoulType
@@ -163,6 +164,7 @@ fun FoulDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text("Record foul") },
     text = {
       when (val currentStep = step) {

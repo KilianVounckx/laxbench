@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.kilianvounckx.laxbench.domain.TeamsInfo
 
 /**
@@ -26,6 +27,7 @@ fun FaceOffDialog(
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text("Face-off") },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

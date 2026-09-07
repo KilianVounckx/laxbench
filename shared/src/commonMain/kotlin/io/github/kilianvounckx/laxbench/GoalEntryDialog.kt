@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.DialogProperties
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 import io.github.kilianvounckx.laxbench.domain.PlayerNumber
 
@@ -33,6 +34,7 @@ fun GoalEntryDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text(title) },
     text = {
       Column {

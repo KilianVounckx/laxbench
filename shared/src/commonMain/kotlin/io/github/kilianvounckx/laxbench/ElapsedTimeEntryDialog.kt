@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.DialogProperties
 import io.github.kilianvounckx.laxbench.domain.ElapsedTime
 
 @Composable
@@ -22,6 +23,7 @@ fun ElapsedTimeEntryDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text(title) },
     text = {
       Column { ElapsedTimeField(value = elapsedTime, onValueChange = { elapsedTime = it }) }

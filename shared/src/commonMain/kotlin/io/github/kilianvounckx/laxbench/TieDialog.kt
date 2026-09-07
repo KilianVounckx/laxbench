@@ -4,6 +4,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * Renders when a lacrosse game ends in a tie (equal score for both teams at the end of the 4th
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 fun TieDialog(onDismiss: () -> Unit) {
   AlertDialog(
     onDismissRequest = onDismiss,
+    properties = DialogProperties(dismissOnClickOutside = false),
     title = { Text("Game over") },
     text = { Text("The game ended in a tie.") },
     confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
