@@ -14,6 +14,7 @@ import androidx.compose.ui.window.DialogProperties
  */
 @Composable
 fun TieDialog(onDismiss: () -> Unit) {
+  BackHandler(onBack = onDismiss)
   AlertDialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(dismissOnClickOutside = false),

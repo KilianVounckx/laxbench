@@ -21,6 +21,7 @@ private val DISMISS_DELAY = 5.seconds
  */
 @Composable
 fun FoulReleaseDialog(message: String, onDismiss: () -> Unit) {
+  BackHandler(onBack = onDismiss)
   LaunchedEffect(Unit) {
     delay(DISMISS_DELAY)
     onDismiss()

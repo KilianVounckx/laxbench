@@ -100,6 +100,15 @@ private data class TimeOutDialogRequest(val elapsedTime: ElapsedTime)
  */
 private data object TieDialogRequest
 
+/**
+ * Marks that [ConfirmQuitDialog] should be shown, in response to an attempted platform back
+ * navigation caught while [GameScreen] is on [GameSubScreen.MAIN] with no other dialog open (case
+ * 3). Carries no data — the dialog displays a fixed message and fixed buttons — but modeled as a
+ * nullable request object rather than a plain boolean to match this file's existing *DialogRequest
+ * convention (see [TieDialogRequest], which does the same for the same stated reason).
+ */
+private data object ConfirmQuitDialogRequest
+
 private data class PopupMessage(val id: Long, val message: String)
 
 /**
@@ -122,6 +131,7 @@ private enum class GameSubScreen {
  */
 @Composable
 internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: ViewModelStoreOwner) {
+  LaunchedEffect(Unit) { PlatformBackNavigation.install() }
   val timerViewModel: TimerViewModel =
     viewModel(viewModelStoreOwner = viewModelStoreOwner) {
       TimerViewModel(initialState.elapsedTime, initialState.runState)
@@ -182,6 +192,7 @@ internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: Vie
   var faceOffDialogRequest by remember { mutableStateOf<FaceOffDialogRequest?>(null) }
   var timeOutDialogRequest by remember { mutableStateOf<TimeOutDialogRequest?>(null) }
   var tieDialogRequest by remember { mutableStateOf<TieDialogRequest?>(null) }
+  var confirmQuitDialogRequest by remember { mutableStateOf<ConfirmQuitDialogRequest?>(null) }
 
   var gameSubScreen by remember { mutableStateOf(GameSubScreen.MAIN) }
   var cancelFoulTimersRequest by remember { mutableStateOf<FoulTimerPlayer?>(null) }
@@ -316,7 +327,8 @@ internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: Vie
         onPlayerTapped = { cancelFoulTimersRequest = it },
         onBack = { gameSubScreen = GameSubScreen.MAIN },
       )
-    GameSubScreen.MAIN ->
+    GameSubScreen.MAIN -> {
+      BackHandler(onBack = { confirmQuitDialogRequest = ConfirmQuitDialogRequest })
       Column(
         modifier = Modifier.safeContentPadding().fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -463,6 +475,7 @@ internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: Vie
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { gameSubScreen = GameSubScreen.MANAGE_GAME }) { Text("Manage game") }
       }
+    }
     GameSubScreen.MANAGE_GAME ->
       ManageGameScreen(
         teamsInfo = teamsInfo,
@@ -576,6 +589,13 @@ internal fun GameScreen(initialState: GameInitialState, viewModelStoreOwner: Vie
   }
 
   tieDialogRequest?.let { TieDialog(onDismiss = { tieDialogRequest = null }) }
+
+  confirmQuitDialogRequest?.let {
+    ConfirmQuitDialog(
+      onConfirmClose = { PlatformBackNavigation.leaveApp() },
+      onStay = { confirmQuitDialogRequest = null },
+    )
+  }
 }
 
 /**

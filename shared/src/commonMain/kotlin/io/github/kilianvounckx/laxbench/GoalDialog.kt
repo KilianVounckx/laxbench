@@ -33,6 +33,7 @@ fun GoalDialog(
   onConfirm: (scorer: PlayerNumber, assist: PlayerNumber?) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  BackHandler(onBack = onDismiss)
   var scorerText by remember { mutableStateOf("") }
   var assistText by remember { mutableStateOf("") }
 

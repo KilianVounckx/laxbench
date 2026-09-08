@@ -28,6 +28,7 @@ fun TimeOutDialog(
   onConfirm: (team: ScoreViewModel.Team) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  BackHandler(onBack = onDismiss)
   AlertDialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(dismissOnClickOutside = false),

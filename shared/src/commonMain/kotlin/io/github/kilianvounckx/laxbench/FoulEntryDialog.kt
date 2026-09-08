@@ -41,6 +41,7 @@ fun FoulEntryDialog(
   onConfirm: (player: PlayerNumber, severity: FoulSeverity, elapsedTime: ElapsedTime) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  BackHandler(onBack = onDismiss)
   var playerText by remember { mutableStateOf(initialPlayerText) }
   var kind by remember {
     mutableStateOf(

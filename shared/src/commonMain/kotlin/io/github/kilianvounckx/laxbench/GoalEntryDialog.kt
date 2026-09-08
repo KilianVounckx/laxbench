@@ -24,6 +24,7 @@ fun GoalEntryDialog(
   onConfirm: (scorer: PlayerNumber, assist: PlayerNumber?, elapsedTime: ElapsedTime) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  BackHandler(onBack = onDismiss)
   var scorerText by remember { mutableStateOf(initialScorerText) }
   var assistText by remember { mutableStateOf(initialAssistText) }
   var elapsedTime by remember { mutableStateOf(initialElapsedTime) }

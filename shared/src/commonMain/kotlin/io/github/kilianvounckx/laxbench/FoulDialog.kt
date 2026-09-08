@@ -100,6 +100,58 @@ private fun FoulDialogStep.previous(): FoulDialogStep? =
   }
 
 /**
+ * Which of three shapes the current [FoulDialogStep] has, for the sole purpose of computing
+ * [foulDialogBackAction]: [FIRST] is [FoulDialogStep.ChooseTeam] (no step to go back to);
+ * [WITH_PREVIOUS] is any step [FoulDialogStep.previous] returns non-null for; [BATCH_CONFIRMATION]
+ * is [FoulDialogStep.ConfirmMore] or [FoulDialogStep.ConfirmCancelChoice] -- the two steps with no
+ * visible secondary button of their own today.
+ */
+internal enum class FoulDialogStepKind {
+  FIRST,
+  WITH_PREVIOUS,
+  BATCH_CONFIRMATION,
+}
+
+private fun FoulDialogStep.kind(): FoulDialogStepKind =
+  when (this) {
+    FoulDialogStep.ConfirmMore,
+    FoulDialogStep.ConfirmCancelChoice -> FoulDialogStepKind.BATCH_CONFIRMATION
+    FoulDialogStep.ChooseTeam -> FoulDialogStepKind.FIRST
+    is FoulDialogStep.EnterPlayer,
+    is FoulDialogStep.ChooseSeverity,
+    is FoulDialogStep.ChooseMinorType,
+    is FoulDialogStep.ChooseMajorType,
+    is FoulDialogStep.ChooseFoulDuration -> FoulDialogStepKind.WITH_PREVIOUS
+  }
+
+/**
+ * The action [FoulDialog]'s secondary control -- its visible button for
+ * [FoulDialogStepKind.FIRST]/[FoulDialogStepKind.WITH_PREVIOUS] steps, or an intercepted platform
+ * back navigation for every step, including [FoulDialogStepKind.BATCH_CONFIRMATION] steps which
+ * have no visible button of their own -- should take, computed purely from [stepKind] and whether
+ * the pending batch is currently empty. See [FoulDialog]'s class doc for the full behavioral
+ * rationale.
+ */
+internal enum class FoulDialogBackAction {
+  GO_TO_PREVIOUS_STEP,
+  DISMISS,
+  GO_TO_CONFIRM_CANCEL_CHOICE,
+  COMMIT_PENDING_BATCH_AND_DISMISS,
+}
+
+internal fun foulDialogBackAction(
+  stepKind: FoulDialogStepKind,
+  pendingBatchIsEmpty: Boolean,
+): FoulDialogBackAction =
+  when (stepKind) {
+    FoulDialogStepKind.BATCH_CONFIRMATION -> FoulDialogBackAction.COMMIT_PENDING_BATCH_AND_DISMISS
+    FoulDialogStepKind.WITH_PREVIOUS -> FoulDialogBackAction.GO_TO_PREVIOUS_STEP
+    FoulDialogStepKind.FIRST ->
+      if (pendingBatchIsEmpty) FoulDialogBackAction.DISMISS
+      else FoulDialogBackAction.GO_TO_CONFIRM_CANCEL_CHOICE
+  }
+
+/**
  * One foul that has been fully filled in during this [FoulDialog] invocation and is waiting,
  * in-memory only, to be committed via onConfirm once the scorekeeper finishes by answering "Done"
  * -- or to be discarded entirely if "Cancel all" is chosen instead. Holds the team alongside the
@@ -138,10 +190,15 @@ private data class PendingFoul(
  * (discard everything, including already-queued fouls, and invoke [onDismiss] with nothing
  * recorded).
  *
- * [onDismiss] is still also invoked, unconditionally and immediately, whenever the dialog is
- * dismissed by tapping outside it or via a system back gesture, regardless of step or batch
- * contents -- this always fully closes the dialog and discards the batch, exactly like "Cancel
- * all".
+ * An attempted platform back navigation (see [BackHandler]) is handled by [performBackAction] via
+ * [foulDialogBackAction], exactly mirroring whatever this dialog's own secondary button would do
+ * for the current step: from any step [FoulDialogStep.previous] returns non-null for, it goes back
+ * one step; from [FoulDialogStep.ChooseTeam] it dismisses outright if the pending batch is empty,
+ * or opens [FoulDialogStep.ConfirmCancelChoice] otherwise; from [FoulDialogStep.ConfirmMore] or
+ * [FoulDialogStep.ConfirmCancelChoice] it commits the pending batch and dismisses, exactly like
+ * "Done". It is [onDismiss] itself, not a back gesture, that is invoked unconditionally and
+ * immediately regardless of step or batch contents, but only via `onDismissRequest` -- tapping
+ * outside is disabled on every step via `dismissOnClickOutside = false`.
  *
  * There is still no way to review, edit, or remove an individual already-queued foul short of
  * discarding the whole batch via "Cancel all".
@@ -161,6 +218,22 @@ fun FoulDialog(
     pendingBatch = pendingBatch + PendingFoul(team, player, severity)
     step = FoulDialogStep.ConfirmMore
   }
+
+  fun commitPendingBatchAndDismiss() {
+    pendingBatch.forEach { onConfirm(it.team, it.player, it.severity) }
+    onDismiss()
+  }
+
+  fun performBackAction() {
+    when (foulDialogBackAction(step.kind(), pendingBatch.isEmpty())) {
+      FoulDialogBackAction.GO_TO_PREVIOUS_STEP -> step = step.previous()!!
+      FoulDialogBackAction.DISMISS -> onDismiss()
+      FoulDialogBackAction.GO_TO_CONFIRM_CANCEL_CHOICE -> step = FoulDialogStep.ConfirmCancelChoice
+      FoulDialogBackAction.COMMIT_PENDING_BATCH_AND_DISMISS -> commitPendingBatchAndDismiss()
+    }
+  }
+
+  BackHandler(onBack = ::performBackAction)
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -261,14 +334,7 @@ fun FoulDialog(
               ) {
                 Text("Add another foul")
               }
-              TextButton(
-                onClick = {
-                  pendingBatch.forEach { onConfirm(it.team, it.player, it.severity) }
-                  onDismiss()
-                }
-              ) {
-                Text("Done")
-              }
+              TextButton(onClick = ::commitPendingBatchAndDismiss) { Text("Done") }
             }
           is FoulDialogStep.ConfirmCancelChoice ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -292,22 +358,10 @@ fun FoulDialog(
       }
     },
     dismissButton = {
-      when (step) {
-        is FoulDialogStep.ConfirmMore,
-        is FoulDialogStep.ConfirmCancelChoice -> {}
-        else -> {
-          val previousStep = step.previous()
-          TextButton(
-            onClick = {
-              when {
-                previousStep != null -> step = previousStep
-                pendingBatch.isEmpty() -> onDismiss()
-                else -> step = FoulDialogStep.ConfirmCancelChoice
-              }
-            }
-          ) {
-            Text(if (previousStep == null) "Cancel" else "Back")
-          }
+      val kind = step.kind()
+      if (kind != FoulDialogStepKind.BATCH_CONFIRMATION) {
+        TextButton(onClick = ::performBackAction) {
+          Text(if (kind == FoulDialogStepKind.FIRST) "Cancel" else "Back")
         }
       }
     },

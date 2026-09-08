@@ -18,6 +18,7 @@ fun ElapsedTimeEntryDialog(
   onConfirm: (ElapsedTime) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  BackHandler(onBack = onDismiss)
   var elapsedTime by remember { mutableStateOf(initialElapsedTime) }
 
   AlertDialog(

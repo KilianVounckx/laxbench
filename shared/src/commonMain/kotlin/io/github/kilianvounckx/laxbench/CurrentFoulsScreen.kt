@@ -32,6 +32,7 @@ internal fun CurrentFoulsScreen(
   onPlayerTapped: (FoulTimerPlayer) -> Unit,
   onBack: () -> Unit,
 ) {
+  BackHandler(onBack = onBack)
   Column(
     modifier = Modifier.safeContentPadding().fillMaxSize(),
     horizontalAlignment = Alignment.CenterHorizontally,

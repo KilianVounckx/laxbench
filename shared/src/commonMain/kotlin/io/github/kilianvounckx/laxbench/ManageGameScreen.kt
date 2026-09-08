@@ -76,6 +76,7 @@ internal fun ManageGameScreen(
   val homeSavesValue by homeSaves.collectAsStateWithLifecycle()
   val visitingSavesValue by visitingSaves.collectAsStateWithLifecycle()
 
+  BackHandler(onBack = onBack)
   Column(Modifier.safeContentPadding().fillMaxSize()) {
     Button(onClick = onBack) { Text("Back") }
     Spacer(modifier = Modifier.height(16.dp))

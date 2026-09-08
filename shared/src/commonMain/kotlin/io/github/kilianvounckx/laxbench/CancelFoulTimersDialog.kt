@@ -21,6 +21,18 @@ private sealed class CancelFoulTimersStep {
 }
 
 /**
+ * The step [CancelFoulTimersDialog]'s secondary control moves to from [this] step, or `null` to
+ * close the dialog via `onDismiss` instead. [CancelFoulTimersStep.ChooseAction]'s secondary control
+ * reads "Cancel" (closes); [CancelFoulTimersStep.ChooseOne]'s reads "Back" (returns to
+ * [CancelFoulTimersStep.ChooseAction]).
+ */
+private fun CancelFoulTimersStep.backTarget(): CancelFoulTimersStep? =
+  when (this) {
+    CancelFoulTimersStep.ChooseAction -> null
+    CancelFoulTimersStep.ChooseOne -> CancelFoulTimersStep.ChooseAction
+  }
+
+/**
  * A pop-up to cancel [player]'s foul timer(s) (see [GameScreen], [CurrentFoulsScreen], and
  * [FoulTimerViewModel]), structurally mirroring [FoulDialog]'s "cancel only this one" vs "cancel
  * all" choice: the first step offers "Cancel one specific foul" (leading to a second step listing
@@ -41,6 +53,13 @@ fun CancelFoulTimersDialog(
   onDismiss: () -> Unit,
 ) {
   var step by remember { mutableStateOf<CancelFoulTimersStep>(CancelFoulTimersStep.ChooseAction) }
+
+  fun performBackAction() {
+    val target = step.backTarget()
+    if (target != null) step = target else onDismiss()
+  }
+
+  BackHandler(onBack = ::performBackAction)
   AlertDialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(dismissOnClickOutside = false),
@@ -86,9 +105,9 @@ fun CancelFoulTimersDialog(
     confirmButton = {},
     dismissButton = {
       when (step) {
-        CancelFoulTimersStep.ChooseAction -> TextButton(onClick = onDismiss) { Text("Cancel") }
-        CancelFoulTimersStep.ChooseOne ->
-          TextButton(onClick = { step = CancelFoulTimersStep.ChooseAction }) { Text("Back") }
+        CancelFoulTimersStep.ChooseAction ->
+          TextButton(onClick = ::performBackAction) { Text("Cancel") }
+        CancelFoulTimersStep.ChooseOne -> TextButton(onClick = ::performBackAction) { Text("Back") }
       }
     },
   )
